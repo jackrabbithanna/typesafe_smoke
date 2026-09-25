@@ -1,0 +1,30 @@
+# CiviCRM Meeting activities for drush typesafe-smoke:civicrm.
+#
+# "details" is the activity's own text field (base field on
+# civicrm_activity); "note" goes into the existing field_ce_meeting_note.
+# Expectations are soft: the command reports them but never fails on them.
+
+M1:
+  subject: '[TypeSafe smoke] Renewal conversation with major donor'
+  details: |
+    Met with the donor for coffee to discuss next year's gift. She confirmed
+    she will renew at the same level and asked us to send the pledge form by
+    Friday. She also offered to introduce us to two colleagues at her firm.
+  note: 'Warm, generous conversation; very keen to stay involved.'
+  expect:
+    field_tss_mtg_follow_up: { equals: true }
+    field_tss_mtg_outcome: { equals: agreement }
+    field_tss_mtg_note_tone: { equals: positive }
+    field_tss_mtg_engagement: { equals: 3 }
+
+M2:
+  subject: '[TypeSafe smoke] Grant check-in call'
+  details: |
+    Scheduled check-in call with the programme officer about the grant
+    report. The officer did not join and did not reply to the reminder
+    email. Nothing was discussed.
+  note: 'Third no-show this quarter. Relationship at risk.'
+  expect:
+    field_tss_mtg_outcome: { equals: cancelled }
+    field_tss_mtg_note_tone: { in: [negative, concerning] }
+    field_tss_mtg_engagement: { equals: 1 }

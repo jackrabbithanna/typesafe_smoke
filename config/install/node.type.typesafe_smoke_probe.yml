@@ -1,0 +1,13 @@
+langcode: en
+status: true
+dependencies:
+  enforced:
+    module:
+      - typesafe_smoke
+name: 'TypeSafe smoke: Contrib probe'
+type: typesafe_smoke_probe
+description: 'Reproduces ai_validations and ai_content_suggestions behaviour with TypeSafe. Validation calls the API; saving is optional.'
+help: null
+new_revision: false
+preview_mode: 0
+display_submitted: false

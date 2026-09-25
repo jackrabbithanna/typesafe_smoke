@@ -1,0 +1,23 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_tss_needs_human
+    - node.type.typesafe_smoke_ticket
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.field_tss_needs_human
+field_name: field_tss_needs_human
+entity_type: node
+bundle: typesafe_smoke_ticket
+label: 'Needs human review'
+description: 'decision_boolean in token mode (title, tier and message as one string), guardrail set typesafe_smoke_pii.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  on_label: 'Needs human review'
+  off_label: 'No'
+field_type: boolean

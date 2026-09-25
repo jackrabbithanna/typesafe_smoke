@@ -1,0 +1,23 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_tss_priority
+    - node.type.typesafe_smoke_ticket
+  module:
+    - options
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.field_tss_priority
+field_name: field_tss_priority
+entity_type: node
+bundle: typesafe_smoke_ticket
+label: Priority
+description: 'decision_list_integer on jev-preview, minimum confidence 0.3.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: list_integer

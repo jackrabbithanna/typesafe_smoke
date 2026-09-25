@@ -1,0 +1,118 @@
+<?php
+
+/**
+ * @file
+ * Install and uninstall hooks for TypeSafe smoke tests.
+ */
+
+declare(strict_types=1);
+
+use Drupal\typesafe_smoke\SmokeContentManager;
+
+/**
+ * Settings this module changes, with the values it sets.
+ */
+function _typesafe_smoke_managed_settings(): array {
+  return [
+    'ai_logging.settings' => [
+      'prompt_logging' => TRUE,
+      'prompt_logging_output' => TRUE,
+      'prompt_logging_tags' => '',
+      'prompt_logging_excluded_tags' => '',
+    ],
+    'ai_content_suggestions.settings' => [
+      'plugins.moderate' => ['enabled' => TRUE, 'model' => 'typesafeai__jev-latest'],
+      'entity_types.node' => ['bundles' => ['typesafe_smoke_probe' => 'typesafe_smoke_probe'], 'mode' => 'enable'],
+    ],
+  ];
+}
+
+/**
+ * Formatters for the CiviCRM smoke fields on the meeting view display.
+ */
+function _typesafe_smoke_meeting_components(): array {
+  return [
+    'field_tss_mtg_follow_up' => ['type' => 'boolean', 'label' => 'inline', 'settings' => ['format' => 'default', 'format_custom_false' => '', 'format_custom_true' => ''], 'third_party_settings' => [], 'weight' => 90, 'region' => 'content'],
+    'field_tss_mtg_outcome' => ['type' => 'list_default', 'label' => 'inline', 'settings' => [], 'third_party_settings' => [], 'weight' => 91, 'region' => 'content'],
+    'field_tss_mtg_note_tone' => ['type' => 'list_default', 'label' => 'inline', 'settings' => [], 'third_party_settings' => [], 'weight' => 92, 'region' => 'content'],
+    'field_tss_mtg_engagement' => ['type' => 'number_integer', 'label' => 'inline', 'settings' => ['thousand_separator' => '', 'prefix_suffix' => TRUE], 'third_party_settings' => [], 'weight' => 93, 'region' => 'content'],
+  ];
+}
+
+/**
+ * Implements hook_install().
+ *
+ * Makes no API calls. Content is created by drush typesafe-smoke:seed.
+ */
+function typesafe_smoke_install(bool $is_syncing): void {
+  if ($is_syncing) {
+    return;
+  }
+  $config_factory = \Drupal::configFactory();
+  $restore = [];
+  foreach (_typesafe_smoke_managed_settings() as $name => $values) {
+    $config = $config_factory->getEditable($name);
+    foreach ($values as $key => $value) {
+      $restore[$name][$key] = $config->get($key);
+      $config->set($key, $value);
+    }
+    $config->save();
+  }
+  \Drupal::state()->set(SmokeContentManager::STATE_RESTORE, $restore);
+
+  $display = \Drupal::entityTypeManager()->getStorage('entity_view_display')->load('civicrm_activity.meeting.default');
+  if ($display) {
+    foreach (_typesafe_smoke_meeting_components() as $field => $component) {
+      $display->setComponent($field, $component);
+    }
+    $display->save();
+  }
+
+  \Drupal::messenger()->addStatus(t('TypeSafe smoke tests installed. Run "drush typesafe-smoke:status", then "drush typesafe-smoke:battery". These make real, billed API calls. Uninstall the module when you are done.'));
+}
+
+/**
+ * Implements hook_uninstall().
+ *
+ * Runs before the module's configuration is removed, so bundles still exist
+ * while their nodes are deleted.
+ */
+function typesafe_smoke_uninstall(bool $is_syncing): void {
+  /** @var \Drupal\typesafe_smoke\SmokeContentManager $content */
+  $content = \Drupal::service('typesafe_smoke.content');
+  $content->deleteNodes();
+  foreach ($content->deleteCivicrm() as $problem) {
+    \Drupal::messenger()->addWarning(t('TypeSafe smoke: @problem', ['@problem' => $problem]));
+  }
+
+  if (!$is_syncing) {
+    $restore = \Drupal::state()->get(SmokeContentManager::STATE_RESTORE, []);
+    $config_factory = \Drupal::configFactory();
+    foreach (_typesafe_smoke_managed_settings() as $name => $values) {
+      $config = $config_factory->getEditable($name);
+      if ($config->isNew() || !isset($restore[$name])) {
+        continue;
+      }
+      $changed = FALSE;
+      foreach ($values as $key => $value) {
+        // Only undo values that still hold what this module set.
+        if ($config->get($key) == $value) {
+          $original = $restore[$name][$key] ?? NULL;
+          $original === NULL ? $config->clear($key) : $config->set($key, $original);
+          $changed = TRUE;
+        }
+        else {
+          \Drupal::logger('typesafe_smoke')->notice('Left @name:@key unchanged on uninstall because it was edited after install.', ['@name' => $name, '@key' => $key]);
+        }
+      }
+      if ($changed) {
+        $config->save();
+      }
+    }
+  }
+
+  $state = \Drupal::state();
+  foreach ([SmokeContentManager::STATE_TRACKED, SmokeContentManager::STATE_SEED, SmokeContentManager::STATE_RESTORE, 'typesafe_smoke.runs'] as $key) {
+    $state->delete($key);
+  }
+}

@@ -1,0 +1,23 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.civicrm_activity.field_tss_mtg_outcome
+  module:
+    - civicrm_entity
+    - options
+  enforced:
+    module:
+      - typesafe_smoke
+id: civicrm_activity.meeting.field_tss_mtg_outcome
+field_name: field_tss_mtg_outcome
+entity_type: civicrm_activity
+bundle: meeting
+label: 'Smoke: meeting outcome'
+description: 'TypeSafe smoke automator (disabled unless drush typesafe-smoke:civicrm runs).'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: list_string

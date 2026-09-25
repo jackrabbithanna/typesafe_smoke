@@ -1,0 +1,13 @@
+langcode: en
+status: true
+dependencies:
+  enforced:
+    module:
+      - typesafe_smoke
+name: 'TypeSafe smoke: Support ticket'
+type: typesafe_smoke_ticket
+description: 'Sample support tickets whose Decision automators call TypeSafe (Jev) on save. Created by the typesafe_smoke module; deleted on uninstall.'
+help: null
+new_revision: false
+preview_mode: 0
+display_submitted: false

@@ -1,0 +1,195 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.typesafe_smoke_ticket.field_tss_churn_risk
+    - field.field.node.typesafe_smoke_ticket.field_tss_escalate
+    - field.field.node.typesafe_smoke_ticket.field_tss_frustration
+    - field.field.node.typesafe_smoke_ticket.field_tss_message
+    - field.field.node.typesafe_smoke_ticket.field_tss_needs_human
+    - field.field.node.typesafe_smoke_ticket.field_tss_priority
+    - field.field.node.typesafe_smoke_ticket.field_tss_refund
+    - field.field.node.typesafe_smoke_ticket.field_tss_sentiment
+    - field.field.node.typesafe_smoke_ticket.field_tss_team
+    - field.field.node.typesafe_smoke_ticket.field_tss_tier
+    - field.field.node.typesafe_smoke_ticket.field_tss_topics
+    - node.type.typesafe_smoke_ticket
+  module:
+    - field_widget_actions
+    - options
+    - text
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.default
+targetEntityType: node
+bundle: typesafe_smoke_ticket
+mode: default
+content:
+  title:
+    type: string_textfield
+    weight: 0
+    region: content
+    settings:
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  field_tss_tier:
+    type: options_select
+    weight: 1
+    region: content
+    settings: {  }
+    third_party_settings: {  }
+  field_tss_message:
+    type: text_textarea
+    weight: 2
+    region: content
+    settings:
+      rows: 8
+      placeholder: ''
+    third_party_settings: {  }
+  field_tss_refund:
+    type: boolean_checkbox
+    weight: 10
+    region: content
+    settings:
+      display_label: true
+    third_party_settings:
+      field_widget_actions:
+        9c6fce00-2516-4344-aaee-443c0b39b191:
+          plugin_id: automator_boolean
+          enabled: true
+          automatic: false
+          button_label: 'Ask Jev: refund?'
+          multiple: false
+          weight: 0
+          settings:
+            automator_id: node.typesafe_smoke_ticket.field_tss_refund.button
+  field_tss_team:
+    type: options_select
+    weight: 11
+    region: content
+    settings: {  }
+    third_party_settings:
+      field_widget_actions:
+        9ae5f6d4-f6ac-4586-835f-4dac34615542:
+          plugin_id: automator_list_string
+          enabled: true
+          automatic: false
+          button_label: 'Ask Jev: team'
+          multiple: false
+          weight: 0
+          enable_refinement: false
+          settings:
+            automator_id: node.typesafe_smoke_ticket.field_tss_team.button
+  field_tss_topics:
+    type: options_buttons
+    weight: 12
+    region: content
+    settings: {  }
+    third_party_settings:
+      field_widget_actions:
+        8279afb6-eabd-4ca2-8993-0f256eb153b2:
+          plugin_id: automator_list_string
+          enabled: true
+          automatic: false
+          button_label: 'Ask Jev: topics'
+          multiple: false
+          weight: 0
+          enable_refinement: false
+          settings:
+            automator_id: node.typesafe_smoke_ticket.field_tss_topics.button
+  field_tss_priority:
+    type: options_select
+    weight: 13
+    region: content
+    settings: {  }
+    third_party_settings:
+      field_widget_actions:
+        ebc8b500-ca63-4717-a776-503d405b233d:
+          plugin_id: automator_list_integer
+          enabled: true
+          automatic: false
+          button_label: 'Ask Jev: priority'
+          multiple: false
+          weight: 0
+          settings:
+            automator_id: node.typesafe_smoke_ticket.field_tss_priority.button
+  field_tss_frustration:
+    type: number
+    weight: 14
+    region: content
+    settings:
+      placeholder: ''
+    third_party_settings:
+      field_widget_actions:
+        ee1bac27-258d-4cbc-a539-5d2332263304:
+          plugin_id: llm_number_number_default
+          enabled: true
+          automatic: false
+          button_label: 'Ask Jev: frustration'
+          multiple: false
+          weight: 0
+          settings:
+            automator_id: node.typesafe_smoke_ticket.field_tss_frustration.button
+  field_tss_churn_risk:
+    type: number
+    weight: 15
+    region: content
+    settings:
+      placeholder: ''
+    third_party_settings: {  }
+  field_tss_sentiment:
+    type: number
+    weight: 16
+    region: content
+    settings:
+      placeholder: ''
+    third_party_settings:
+      field_widget_actions:
+        b98f9c2f-6b79-4139-a3a6-1e87c6a5e2cb:
+          plugin_id: llm_number_number_default
+          enabled: true
+          automatic: false
+          button_label: 'Ask Jev: sentiment'
+          multiple: false
+          weight: 0
+          settings:
+            automator_id: node.typesafe_smoke_ticket.field_tss_sentiment.button
+  field_tss_needs_human:
+    type: boolean_checkbox
+    weight: 17
+    region: content
+    settings:
+      display_label: true
+    third_party_settings: {  }
+  field_tss_escalate:
+    type: boolean_checkbox
+    weight: 18
+    region: content
+    settings:
+      display_label: true
+    third_party_settings:
+      field_widget_actions:
+        b58de33a-5c31-4308-9d85-c80ff630729e:
+          plugin_id: automator_boolean
+          enabled: true
+          automatic: false
+          button_label: 'Ask Jev: escalate?'
+          multiple: false
+          weight: 0
+          settings:
+            automator_id: node.typesafe_smoke_ticket.field_tss_escalate.button
+  status:
+    type: boolean_checkbox
+    weight: 30
+    region: content
+    settings:
+      display_label: true
+    third_party_settings: {  }
+hidden:
+  created: true
+  path: true
+  promote: true
+  sticky: true
+  uid: true

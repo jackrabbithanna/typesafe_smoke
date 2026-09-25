@@ -1,0 +1,52 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.typesafe_smoke_ticket.field_tss_frustration
+  module:
+    - ai_decision_automators
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.field_tss_frustration.default
+label: 'Smoke: frustration (integer score)'
+rule: decision_integer
+input_mode: base
+weight: 50
+worker_type: direct
+entity_type: node
+bundle: typesafe_smoke_ticket
+field_name: field_tss_frustration
+edit_mode: true
+base_field: field_tss_message
+prompt: 'How frustrated does the customer who wrote `content` appear?'
+token: ''
+guardrail_set_id: null
+plugin_config:
+  automator_enabled: 1
+  automator_rule: decision_integer
+  automator_mode: base
+  automator_base_field: field_tss_message
+  automator_prompt: 'How frustrated does the customer who wrote `content` appear?'
+  automator_token: ''
+  automator_edit_mode: 1
+  automator_label: 'Smoke: frustration (integer score)'
+  automator_weight: '50'
+  automator_worker_type: direct
+  automator_ai_provider: typesafeai
+  automator_ai_model: jev-latest
+  automator_guardrail_set_id: ''
+  automator_decision_levels: |-
+    Calm: neutral, matter-of-fact or positive.
+    Mildly inconvenienced: polite, with minor annoyance.
+    Frustrated: clearly unhappy but civil.
+    Very frustrated: angry, a repeated problem, or threatening to leave.
+    Furious or abusive: hostile, insulting or threatening.
+  automator_decision_level_values: |-
+    1
+    2
+    3
+    4
+    5
+  automator_decision_value_mode: expected
+  automator_decision_instructions: ''

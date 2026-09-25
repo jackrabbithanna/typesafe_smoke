@@ -1,0 +1,21 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_tss_mod_cat
+    - node.type.typesafe_smoke_probe
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_probe.field_tss_mod_cat
+field_name: field_tss_mod_cat
+entity_type: node
+bundle: typesafe_smoke_probe
+label: 'Moderation probe (harassment, violence)'
+description: 'ai_validations moderation rule TSS-V4 with categories.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string_long

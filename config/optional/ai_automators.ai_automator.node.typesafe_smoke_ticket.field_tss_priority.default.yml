@@ -1,0 +1,40 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.typesafe_smoke_ticket.field_tss_priority
+  module:
+    - ai_decision_automators
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.field_tss_priority.default
+label: 'Smoke: priority (jev-preview)'
+rule: decision_list_integer
+input_mode: base
+weight: 40
+worker_type: direct
+entity_type: node
+bundle: typesafe_smoke_ticket
+field_name: field_tss_priority
+edit_mode: true
+base_field: field_tss_message
+prompt: 'What priority should the ticket in `content` get?'
+token: ''
+guardrail_set_id: null
+plugin_config:
+  automator_enabled: 1
+  automator_rule: decision_list_integer
+  automator_mode: base
+  automator_base_field: field_tss_message
+  automator_prompt: 'What priority should the ticket in `content` get?'
+  automator_token: ''
+  automator_edit_mode: 1
+  automator_label: 'Smoke: priority (jev-preview)'
+  automator_weight: '40'
+  automator_worker_type: direct
+  automator_ai_provider: typesafeai
+  automator_ai_model: jev-preview
+  automator_guardrail_set_id: ''
+  automator_decision_min_confidence: 0.3
+  automator_decision_instructions: ''

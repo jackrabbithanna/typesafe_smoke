@@ -1,0 +1,25 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_tss_churn_risk
+    - node.type.typesafe_smoke_ticket
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.field_tss_churn_risk
+field_name: field_tss_churn_risk
+entity_type: node
+bundle: typesafe_smoke_ticket
+label: 'Churn risk (0–1)'
+description: 'decision_decimal, 4 levels, expected value.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  min: 0
+  max: 1
+  prefix: ''
+  suffix: ''
+field_type: decimal

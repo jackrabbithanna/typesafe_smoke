@@ -1,0 +1,21 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_tss_classify
+    - node.type.typesafe_smoke_probe
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_probe.field_tss_classify
+field_name: field_tss_classify
+entity_type: node
+bundle: typesafe_smoke_probe
+label: 'Classification probe'
+description: 'ai_validations text classification rules TSS-V1 (fail when unavailable) and TSS-V2 (skip).'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: string_long

@@ -1,0 +1,17 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - ai.ai_guardrail.typesafe_smoke_post_answer_probe
+  enforced:
+    module:
+      - typesafe_smoke
+id: typesafe_smoke_post_probe
+label: 'Smoke: post-phase probe'
+description: 'Battery only.'
+stop_threshold: 1.0
+pre_generate_guardrails:
+  plugin_id: {  }
+post_generate_guardrails:
+  plugin_id:
+    - typesafe_smoke_post_answer_probe

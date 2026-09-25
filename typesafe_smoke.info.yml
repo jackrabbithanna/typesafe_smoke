@@ -1,0 +1,25 @@
+name: 'TypeSafe smoke tests'
+type: module
+description: 'Removable live smoke tests for the TypeSafe AI provider: sample content, Decision automators, guardrails and Drush checks. Makes real, billed API calls. Uninstall after testing.'
+package: Testing
+core_version_requirement: ^11.2
+dependencies:
+  - drupal:node
+  - drupal:text
+  - drupal:options
+  - drupal:field
+  - token:token
+  - key:key
+  - ai:ai
+  - ai:ai_decision
+  - ai:ai_automators
+  - ai:ai_decision_automators
+  - ai:ai_decision_explorer
+  - ai:ai_api_explorer
+  - ai_provider_typesafeai:ai_provider_typesafeai
+  - civicrm_entity:civicrm_entity
+  - ai_logging:ai_logging
+  - field_widget_actions:field_widget_actions
+  - field_validation:field_validation
+  - ai_validations:ai_validations
+  - ai_content_suggestions:ai_content_suggestions

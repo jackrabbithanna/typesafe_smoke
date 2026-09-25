@@ -1,0 +1,40 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.typesafe_smoke_ticket.field_tss_refund
+  module:
+    - ai_decision_automators
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.field_tss_refund.button
+label: 'Smoke button: refund'
+rule: decision_boolean
+input_mode: base
+weight: 11
+worker_type: field_widget_actions
+entity_type: node
+bundle: typesafe_smoke_ticket
+field_name: field_tss_refund
+edit_mode: true
+base_field: field_tss_message
+prompt: 'Is the customer who wrote `content` asking for money back, such as a refund, chargeback or account credit?'
+token: ''
+guardrail_set_id: null
+plugin_config:
+  automator_enabled: 1
+  automator_rule: decision_boolean
+  automator_mode: base
+  automator_base_field: field_tss_message
+  automator_prompt: 'Is the customer who wrote `content` asking for money back, such as a refund, chargeback or account credit?'
+  automator_token: ''
+  automator_edit_mode: 1
+  automator_label: 'Smoke button: refund'
+  automator_weight: '11'
+  automator_worker_type: field_widget_actions
+  automator_ai_provider: typesafeai
+  automator_ai_model: jev-latest
+  automator_guardrail_set_id: ''
+  automator_decision_threshold: 0.5
+  automator_decision_instructions: ''

@@ -1,0 +1,45 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.typesafe_smoke_probe.field_tss_classify
+    - field.field.node.typesafe_smoke_probe.field_tss_mod_any
+    - field.field.node.typesafe_smoke_probe.field_tss_mod_cat
+    - node.type.typesafe_smoke_probe
+  module:
+    - user
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_probe.default
+targetEntityType: node
+bundle: typesafe_smoke_probe
+mode: default
+content:
+  field_tss_classify:
+    type: basic_string
+    label: above
+    settings: {  }
+    third_party_settings: {  }
+    weight: 0
+    region: content
+  field_tss_mod_any:
+    type: basic_string
+    label: above
+    settings: {  }
+    third_party_settings: {  }
+    weight: 1
+    region: content
+  field_tss_mod_cat:
+    type: basic_string
+    label: above
+    settings: {  }
+    third_party_settings: {  }
+    weight: 2
+    region: content
+  links:
+    settings: {  }
+    third_party_settings: {  }
+    weight: 100
+    region: content
+hidden: {  }

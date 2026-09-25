@@ -1,0 +1,17 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - ai.ai_guardrail.typesafe_smoke_card_number
+  enforced:
+    module:
+      - typesafe_smoke
+id: typesafe_smoke_pii
+label: 'Smoke: PII only'
+description: 'Card number check only.'
+stop_threshold: 1.0
+pre_generate_guardrails:
+  plugin_id:
+    - typesafe_smoke_card_number
+post_generate_guardrails:
+  plugin_id: {  }

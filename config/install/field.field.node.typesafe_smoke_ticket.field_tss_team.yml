@@ -1,0 +1,23 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_tss_team
+    - node.type.typesafe_smoke_ticket
+  module:
+    - options
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.field_tss_team
+field_name: field_tss_team
+entity_type: node
+bundle: typesafe_smoke_ticket
+label: Team
+description: 'decision_list_string, single value: one choice question with descriptions.'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings: {  }
+field_type: list_string

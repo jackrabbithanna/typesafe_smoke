@@ -1,0 +1,40 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.typesafe_smoke_ticket.field_tss_topics
+  module:
+    - ai_decision_automators
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.field_tss_topics.default
+label: 'Smoke: topics (multi-value yes/no)'
+rule: decision_list_string
+input_mode: base
+weight: 30
+worker_type: direct
+entity_type: node
+bundle: typesafe_smoke_ticket
+field_name: field_tss_topics
+edit_mode: true
+base_field: field_tss_message
+prompt: 'Which topics does the ticket in `content` raise?'
+token: ''
+guardrail_set_id: null
+plugin_config:
+  automator_enabled: 1
+  automator_rule: decision_list_string
+  automator_mode: base
+  automator_base_field: field_tss_message
+  automator_prompt: 'Which topics does the ticket in `content` raise?'
+  automator_token: ''
+  automator_edit_mode: 1
+  automator_label: 'Smoke: topics (multi-value yes/no)'
+  automator_weight: '30'
+  automator_worker_type: direct
+  automator_ai_provider: typesafeai
+  automator_ai_model: jev-latest
+  automator_guardrail_set_id: ''
+  automator_decision_multi_threshold: 0.5
+  automator_decision_instructions: ''

@@ -1,0 +1,48 @@
+langcode: en
+status: false
+dependencies:
+  config:
+    - field.field.civicrm_activity.meeting.field_tss_mtg_engagement
+  module:
+    - ai_decision_automators
+  enforced:
+    module:
+      - typesafe_smoke
+id: civicrm_activity.meeting.field_tss_mtg_engagement.default
+label: 'Smoke: meeting engagement (CiviCRM)'
+rule: decision_integer
+input_mode: base
+weight: 40
+worker_type: direct
+entity_type: civicrm_activity
+bundle: meeting
+field_name: field_tss_mtg_engagement
+edit_mode: true
+base_field: details
+prompt: 'How engaged was the contact in the meeting described in `content`?'
+token: ''
+guardrail_set_id: null
+plugin_config:
+  automator_enabled: 1
+  automator_rule: decision_integer
+  automator_mode: base
+  automator_base_field: details
+  automator_prompt: 'How engaged was the contact in the meeting described in `content`?'
+  automator_token: ''
+  automator_edit_mode: 1
+  automator_label: 'Smoke: meeting engagement (CiviCRM)'
+  automator_weight: '40'
+  automator_worker_type: direct
+  automator_ai_provider: typesafeai
+  automator_ai_model: jev-latest
+  automator_guardrail_set_id: ''
+  automator_decision_levels: |-
+    Low: the contact did not attend or showed little interest.
+    Medium: the contact took part but made no commitment.
+    High: the contact was engaged and committed to next steps.
+  automator_decision_level_values: |-
+    1
+    2
+    3
+  automator_decision_value_mode: most_likely
+  automator_decision_instructions: ''

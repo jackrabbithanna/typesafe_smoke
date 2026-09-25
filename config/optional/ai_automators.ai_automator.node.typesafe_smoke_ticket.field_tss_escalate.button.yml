@@ -1,0 +1,41 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - ai.ai_guardrail_set.typesafe_smoke_intake
+    - field.field.node.typesafe_smoke_ticket.field_tss_escalate
+  module:
+    - ai_decision_automators
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.field_tss_escalate.button
+label: 'Smoke button: escalate (intake guardrails)'
+rule: decision_boolean
+input_mode: base
+weight: 91
+worker_type: field_widget_actions
+entity_type: node
+bundle: typesafe_smoke_ticket
+field_name: field_tss_escalate
+edit_mode: true
+base_field: field_tss_message
+prompt: 'Should the ticket in `content` be escalated to a team lead immediately because of an outage, a security incident, a legal or physical threat, or a high-value customer at risk?'
+token: ''
+guardrail_set_id: typesafe_smoke_intake
+plugin_config:
+  automator_enabled: 1
+  automator_rule: decision_boolean
+  automator_mode: base
+  automator_base_field: field_tss_message
+  automator_prompt: 'Should the ticket in `content` be escalated to a team lead immediately because of an outage, a security incident, a legal or physical threat, or a high-value customer at risk?'
+  automator_token: ''
+  automator_edit_mode: 1
+  automator_label: 'Smoke button: escalate (intake guardrails)'
+  automator_weight: '91'
+  automator_worker_type: field_widget_actions
+  automator_ai_provider: typesafeai
+  automator_ai_model: jev-latest
+  automator_guardrail_set_id: typesafe_smoke_intake
+  automator_decision_threshold: 0.7
+  automator_decision_instructions: ''

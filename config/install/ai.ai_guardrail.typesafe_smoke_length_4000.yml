@@ -1,0 +1,16 @@
+langcode: en
+status: true
+dependencies:
+  enforced:
+    module:
+      - typesafe_smoke
+id: typesafe_smoke_length_4000
+label: 'Smoke: input length 4000 characters'
+description: 'Blocks Decision requests whose serialized input exceeds 4000 characters.'
+guardrail: input_length_limit
+guardrail_settings:
+  max_length: 4000
+  use_tokens: false
+  tokenizer_model: ''
+  scan_all_user_messages: false
+  violation_message: 'TSS-GR-LENGTH: Decision input has @count @unit; maximum @max.'

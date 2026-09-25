@@ -1,0 +1,52 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.typesafe_smoke_ticket.field_tss_sentiment
+  module:
+    - ai_decision_automators
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.field_tss_sentiment.default
+label: 'Smoke: sentiment (float, default provider)'
+rule: decision_float
+input_mode: base
+weight: 70
+worker_type: direct
+entity_type: node
+bundle: typesafe_smoke_ticket
+field_name: field_tss_sentiment
+edit_mode: true
+base_field: field_tss_message
+prompt: 'What is the overall sentiment of `content` toward the product or company?'
+token: ''
+guardrail_set_id: null
+plugin_config:
+  automator_enabled: 1
+  automator_rule: decision_float
+  automator_mode: base
+  automator_base_field: field_tss_message
+  automator_prompt: 'What is the overall sentiment of `content` toward the product or company?'
+  automator_token: ''
+  automator_edit_mode: 1
+  automator_label: 'Smoke: sentiment (float, default provider)'
+  automator_weight: '70'
+  automator_worker_type: direct
+  automator_ai_provider: default
+  automator_ai_model: ''
+  automator_guardrail_set_id: ''
+  automator_decision_levels: |-
+    Very negative: angry, hostile or deeply disappointed.
+    Negative: unhappy or critical.
+    Neutral or mixed.
+    Positive: satisfied or appreciative.
+    Very positive: delighted or enthusiastic.
+  automator_decision_level_values: |-
+    -1
+    -0.5
+    0
+    0.5
+    1
+  automator_decision_value_mode: most_likely
+  automator_decision_instructions: ''

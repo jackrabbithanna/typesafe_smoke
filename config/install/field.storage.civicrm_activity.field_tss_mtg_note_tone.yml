@@ -1,0 +1,35 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - civicrm_entity
+    - options
+  enforced:
+    module:
+      - typesafe_smoke
+id: civicrm_activity.field_tss_mtg_note_tone
+field_name: field_tss_mtg_note_tone
+entity_type: civicrm_activity
+type: list_string
+settings:
+  allowed_values:
+    -
+      value: positive
+      label: Positive
+    -
+      value: neutral
+      label: Neutral
+    -
+      value: negative
+      label: Negative
+    -
+      value: concerning
+      label: 'Concerning — needs staff attention'
+  allowed_values_function: ''
+module: options
+locked: false
+cardinality: 1
+translatable: true
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false

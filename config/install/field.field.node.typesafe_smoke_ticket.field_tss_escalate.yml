@@ -1,0 +1,23 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.storage.node.field_tss_escalate
+    - node.type.typesafe_smoke_ticket
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.field_tss_escalate
+field_name: field_tss_escalate
+entity_type: node
+bundle: typesafe_smoke_ticket
+label: 'Escalate to team lead'
+description: 'decision_boolean, threshold 0.7, guardrail set typesafe_smoke_intake (card number, length, moderation).'
+required: false
+translatable: true
+default_value: {  }
+default_value_callback: ''
+settings:
+  on_label: Escalate
+  off_label: 'No'
+field_type: boolean

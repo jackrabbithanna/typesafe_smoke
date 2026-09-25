@@ -1,0 +1,49 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - ai.ai_guardrail_set.typesafe_smoke_pii
+    - field.field.node.typesafe_smoke_ticket.field_tss_needs_human
+  module:
+    - ai_decision_automators
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.field_tss_needs_human.default
+label: 'Smoke: needs human (token mode, PII guardrail)'
+rule: decision_boolean
+input_mode: token
+weight: 80
+worker_type: direct
+entity_type: node
+bundle: typesafe_smoke_ticket
+field_name: field_tss_needs_human
+edit_mode: true
+base_field: field_tss_message
+prompt: 'Should a human agent review this ticket before any automated reply is sent?'
+token: |-
+  Subject: [node:title]
+  Customer tier: [node:field_tss_tier]
+  Message:
+  [node:field_tss_message:value]
+guardrail_set_id: typesafe_smoke_pii
+plugin_config:
+  automator_enabled: 1
+  automator_rule: decision_boolean
+  automator_mode: token
+  automator_base_field: field_tss_message
+  automator_prompt: 'Should a human agent review this ticket before any automated reply is sent?'
+  automator_token: |-
+    Subject: [node:title]
+    Customer tier: [node:field_tss_tier]
+    Message:
+    [node:field_tss_message:value]
+  automator_edit_mode: 1
+  automator_label: 'Smoke: needs human (token mode, PII guardrail)'
+  automator_weight: '80'
+  automator_worker_type: direct
+  automator_ai_provider: typesafeai
+  automator_ai_model: jev-latest
+  automator_guardrail_set_id: typesafe_smoke_pii
+  automator_decision_threshold: 0.6
+  automator_decision_instructions: 'Should a human agent review this ticket before any automated reply is sent?'

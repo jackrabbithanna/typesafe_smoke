@@ -1,0 +1,86 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.typesafe_smoke_probe.field_tss_classify
+    - field.field.node.typesafe_smoke_probe.field_tss_mod_any
+    - field.field.node.typesafe_smoke_probe.field_tss_mod_cat
+    - node.type.typesafe_smoke_probe
+  module:
+    - ai_validations
+  enforced:
+    module:
+      - typesafe_smoke
+name: node_typesafe_smoke_probe
+label: 'TypeSafe smoke: contrib probe rules'
+entity_type: node
+bundle: typesafe_smoke_probe
+field_validation_rules:
+  2512e230-97ec-4ff0-9bb9-7fe7d75469b4:
+    uuid: 2512e230-97ec-4ff0-9bb9-7fe7d75469b4
+    id: ai_text_classification_constraint_rule
+    title: TSS-V1
+    weight: 0
+    field_name: field_tss_classify
+    column: value
+    error_message: 'TSS-V1: classified as spam (or the provider failed).'
+    roles: {  }
+    condition: {  }
+    data:
+      validate_mode: default
+      tag: spam
+      finder: exact
+      model: typesafeai__jev-latest
+      minimum: 0.5
+      na: fail
+      message: 'TSS-V1: classified as spam (or the provider failed).'
+  0cefe975-f2c8-436b-8ea7-7b6f84737db4:
+    uuid: 0cefe975-f2c8-436b-8ea7-7b6f84737db4
+    id: ai_text_classification_constraint_rule
+    title: TSS-V2
+    weight: 1
+    field_name: field_tss_classify
+    column: value
+    error_message: 'TSS-V2: classified as spam.'
+    roles: {  }
+    condition: {  }
+    data:
+      validate_mode: default
+      tag: spam
+      finder: exact
+      model: typesafeai__jev-latest
+      minimum: 0.5
+      na: skip
+      message: 'TSS-V2: classified as spam.'
+  afb95ebd-f8a9-48a5-8cfa-2a68312c5e41:
+    uuid: afb95ebd-f8a9-48a5-8cfa-2a68312c5e41
+    id: ai_moderation_constraint_rule
+    title: TSS-V3
+    weight: 2
+    field_name: field_tss_mod_any
+    column: value
+    error_message: 'TSS-V3: flagged by moderation.'
+    roles: {  }
+    condition: {  }
+    data:
+      validate_mode: default
+      provider: typesafeai__jev-latest
+      categories: ''
+      threshold: 0.5
+      message: 'TSS-V3: flagged by moderation.'
+  e38d4f26-9175-4f88-96d6-f654735b3476:
+    uuid: e38d4f26-9175-4f88-96d6-f654735b3476
+    id: ai_moderation_constraint_rule
+    title: TSS-V4
+    weight: 3
+    field_name: field_tss_mod_cat
+    column: value
+    error_message: 'TSS-V4: flagged for harassment or violence.'
+    roles: {  }
+    condition: {  }
+    data:
+      validate_mode: default
+      provider: typesafeai__jev-latest
+      categories: 'harassment,violence'
+      threshold: 0.5
+      message: 'TSS-V4: flagged for harassment or violence.'

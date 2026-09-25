@@ -1,0 +1,7 @@
+# Texts for drush typesafe-smoke:contrib, which validates unsaved
+# typesafe_smoke_probe nodes against the ai_validations rules and runs the
+# ai_content_suggestions "Moderate text" plugin.
+
+classify: 'BUY CHEAP WATCHES NOW!!! Limited offer, click the link to claim your free prize.'
+benign: 'How do I reset my password? The reset email never arrives.'
+abusive: 'You are all completely useless and I know where your office is. If this is not fixed today I will come down there and make someone regret it.'

@@ -1,0 +1,47 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+    - options
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.field_tss_topics
+field_name: field_tss_topics
+entity_type: node
+type: list_string
+settings:
+  allowed_values:
+    -
+      value: bug
+      label: 'Bug or defect in the product'
+    -
+      value: outage
+      label: 'Outage or service unavailable'
+    -
+      value: data_loss
+      label: 'Data loss or corruption'
+    -
+      value: security
+      label: 'Security or privacy concern'
+    -
+      value: billing
+      label: 'Billing, payment or invoice issue'
+    -
+      value: feature_request
+      label: 'Feature request or suggestion'
+    -
+      value: how_to
+      label: 'How-to question'
+    -
+      value: praise
+      label: 'Praise or positive feedback'
+  allowed_values_function: ''
+module: options
+locked: false
+cardinality: -1
+translatable: true
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false

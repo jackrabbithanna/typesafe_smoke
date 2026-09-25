@@ -1,0 +1,48 @@
+services:
+  typesafe_smoke.call_recorder:
+    class: Drupal\typesafe_smoke\CallRecorder
+    arguments: ['@logger.log_message_parser']
+    tags:
+      - { name: event_subscriber }
+      - { name: logger }
+  Drupal\typesafe_smoke\CallRecorder: '@typesafe_smoke.call_recorder'
+
+  typesafe_smoke.http_counter:
+    class: Drupal\typesafe_smoke\HttpCounterMiddleware
+    arguments: ['@typesafe_smoke.call_recorder']
+    tags:
+      - { name: http_client_middleware }
+
+  typesafe_smoke.fixtures:
+    class: Drupal\typesafe_smoke\FixtureRepository
+    arguments: ['@extension.list.module']
+  Drupal\typesafe_smoke\FixtureRepository: '@typesafe_smoke.fixtures'
+
+  typesafe_smoke.content:
+    class: Drupal\typesafe_smoke\SmokeContentManager
+    arguments: ['@entity_type.manager', '@state', '@module_handler', '@logger.channel.typesafe_smoke']
+  Drupal\typesafe_smoke\SmokeContentManager: '@typesafe_smoke.content'
+
+  logger.channel.typesafe_smoke:
+    parent: logger.channel_base
+    arguments: ['typesafe_smoke']
+
+  typesafe_smoke.battery:
+    class: Drupal\typesafe_smoke\Battery
+    arguments: ['@ai.provider', '@typesafe_smoke.call_recorder', '@ai.guardrail_helper', '@typesafe_smoke.fixtures']
+  Drupal\typesafe_smoke\Battery: '@typesafe_smoke.battery'
+
+  typesafe_smoke.tickets:
+    class: Drupal\typesafe_smoke\Tickets
+    arguments: ['@typesafe_smoke.fixtures', '@typesafe_smoke.content', '@typesafe_smoke.call_recorder', '@state', '@account_switcher']
+  Drupal\typesafe_smoke\Tickets: '@typesafe_smoke.tickets'
+
+  typesafe_smoke.civicrm_probe:
+    class: Drupal\typesafe_smoke\CivicrmProbe
+    arguments: ['@entity_type.manager', '@typesafe_smoke.content', '@typesafe_smoke.fixtures', '@typesafe_smoke.call_recorder', '@account_switcher']
+  Drupal\typesafe_smoke\CivicrmProbe: '@typesafe_smoke.civicrm_probe'
+
+  typesafe_smoke.contrib_probe:
+    class: Drupal\typesafe_smoke\ContribProbe
+    arguments: ['@entity_type.manager', '@ai.provider', '@plugin.manager.ai_content_suggestions', '@config.factory', '@typesafe_smoke.fixtures', '@typesafe_smoke.call_recorder']
+  Drupal\typesafe_smoke\ContribProbe: '@typesafe_smoke.contrib_probe'

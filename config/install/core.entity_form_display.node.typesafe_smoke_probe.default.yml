@@ -1,0 +1,61 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.typesafe_smoke_probe.field_tss_classify
+    - field.field.node.typesafe_smoke_probe.field_tss_mod_any
+    - field.field.node.typesafe_smoke_probe.field_tss_mod_cat
+    - node.type.typesafe_smoke_probe
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_probe.default
+targetEntityType: node
+bundle: typesafe_smoke_probe
+mode: default
+content:
+  title:
+    type: string_textfield
+    weight: 0
+    region: content
+    settings:
+      size: 60
+      placeholder: ''
+    third_party_settings: {  }
+  field_tss_classify:
+    type: string_textarea
+    weight: 1
+    region: content
+    settings:
+      rows: 4
+      placeholder: ''
+    third_party_settings: {  }
+  field_tss_mod_any:
+    type: string_textarea
+    weight: 2
+    region: content
+    settings:
+      rows: 4
+      placeholder: ''
+    third_party_settings: {  }
+  field_tss_mod_cat:
+    type: string_textarea
+    weight: 3
+    region: content
+    settings:
+      rows: 4
+      placeholder: ''
+    third_party_settings: {  }
+  status:
+    type: boolean_checkbox
+    weight: 30
+    region: content
+    settings:
+      display_label: true
+    third_party_settings: {  }
+hidden:
+  created: true
+  path: true
+  promote: true
+  sticky: true
+  uid: true

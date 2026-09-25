@@ -1,0 +1,50 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - field.field.node.typesafe_smoke_ticket.field_tss_churn_risk
+  module:
+    - ai_decision_automators
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.typesafe_smoke_ticket.field_tss_churn_risk.default
+label: 'Smoke: churn risk (decimal score)'
+rule: decision_decimal
+input_mode: base
+weight: 60
+worker_type: direct
+entity_type: node
+bundle: typesafe_smoke_ticket
+field_name: field_tss_churn_risk
+edit_mode: true
+base_field: field_tss_message
+prompt: 'How likely is the customer who wrote `content` to cancel or leave?'
+token: ''
+guardrail_set_id: null
+plugin_config:
+  automator_enabled: 1
+  automator_rule: decision_decimal
+  automator_mode: base
+  automator_base_field: field_tss_message
+  automator_prompt: 'How likely is the customer who wrote `content` to cancel or leave?'
+  automator_token: ''
+  automator_edit_mode: 1
+  automator_label: 'Smoke: churn risk (decimal score)'
+  automator_weight: '60'
+  automator_worker_type: direct
+  automator_ai_provider: typesafeai
+  automator_ai_model: jev-latest
+  automator_guardrail_set_id: ''
+  automator_decision_levels: |-
+    No sign the customer might leave.
+    Some dissatisfaction, but no mention of leaving.
+    Considering alternatives or questioning the value of the product.
+    Explicitly cancelling, downgrading or moving to a competitor.
+  automator_decision_level_values: |-
+    0
+    0.33
+    0.67
+    1
+  automator_decision_value_mode: expected
+  automator_decision_instructions: ''

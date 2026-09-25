@@ -1,0 +1,14 @@
+langcode: en
+status: true
+dependencies:
+  enforced:
+    module:
+      - typesafe_smoke
+id: typesafe_smoke_moderation
+label: 'Smoke: TypeSafe moderation'
+description: 'Moderates the Decision state with TypeSafe before the Decision call. Costs one extra API call.'
+guardrail: moderation
+guardrail_settings:
+  flagged_message: 'TSS-GR-MOD: flagged by TypeSafe moderation.'
+  moderation_model: typesafeai__jev-latest
+  scan_all_user_messages: false

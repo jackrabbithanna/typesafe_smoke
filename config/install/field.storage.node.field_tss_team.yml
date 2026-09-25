@@ -1,0 +1,38 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - node
+    - options
+  enforced:
+    module:
+      - typesafe_smoke
+id: node.field_tss_team
+field_name: field_tss_team
+entity_type: node
+type: list_string
+settings:
+  allowed_values:
+    -
+      value: billing
+      label: 'Billing — charges, invoices, refunds, VAT and subscriptions'
+    -
+      value: technical
+      label: 'Technical — bugs, errors, outages, integrations and performance'
+    -
+      value: account
+      label: 'Account — login, 2FA, passwords, users and permissions'
+    -
+      value: sales
+      label: 'Sales — pricing, plans, quotes, seats and upgrades'
+    -
+      value: other
+      label: 'Other — anything no team above covers'
+  allowed_values_function: ''
+module: options
+locked: false
+cardinality: 1
+translatable: true
+indexes: {  }
+persist_with_no_fields: false
+custom_storage: false

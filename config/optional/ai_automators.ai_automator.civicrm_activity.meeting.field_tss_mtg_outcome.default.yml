@@ -1,0 +1,40 @@
+langcode: en
+status: false
+dependencies:
+  config:
+    - field.field.civicrm_activity.meeting.field_tss_mtg_outcome
+  module:
+    - ai_decision_automators
+  enforced:
+    module:
+      - typesafe_smoke
+id: civicrm_activity.meeting.field_tss_mtg_outcome.default
+label: 'Smoke: meeting outcome (CiviCRM)'
+rule: decision_list_string
+input_mode: base
+weight: 20
+worker_type: direct
+entity_type: civicrm_activity
+bundle: meeting
+field_name: field_tss_mtg_outcome
+edit_mode: true
+base_field: details
+prompt: 'What was the outcome of the meeting described in `content`?'
+token: ''
+guardrail_set_id: null
+plugin_config:
+  automator_enabled: 1
+  automator_rule: decision_list_string
+  automator_mode: base
+  automator_base_field: details
+  automator_prompt: 'What was the outcome of the meeting described in `content`?'
+  automator_token: ''
+  automator_edit_mode: 1
+  automator_label: 'Smoke: meeting outcome (CiviCRM)'
+  automator_weight: '20'
+  automator_worker_type: direct
+  automator_ai_provider: typesafeai
+  automator_ai_model: jev-latest
+  automator_guardrail_set_id: ''
+  automator_decision_min_confidence: 0
+  automator_decision_instructions: ''

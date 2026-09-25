@@ -1,0 +1,14 @@
+langcode: en
+status: true
+dependencies:
+  enforced:
+    module:
+      - typesafe_smoke
+id: typesafe_smoke_unsupported_probe
+label: 'Smoke: unsupported guardrail probe'
+description: 'Battery only: a streaming guardrail, which Decision must reject as a setup failure before any API call.'
+guardrail: sensitive_content_stream
+guardrail_settings:
+  start_marker: '[['
+  stop_marker: ']]'
+  replacement_message: TSS-GR-UNSUPPORTED

@@ -1,0 +1,21 @@
+langcode: en
+status: true
+dependencies:
+  config:
+    - ai.ai_guardrail.typesafe_smoke_card_number
+    - ai.ai_guardrail.typesafe_smoke_length_4000
+    - ai.ai_guardrail.typesafe_smoke_moderation
+  enforced:
+    module:
+      - typesafe_smoke
+id: typesafe_smoke_intake
+label: 'Smoke: ticket intake'
+description: 'Card number, length and TypeSafe moderation, in that order (the paid check last).'
+stop_threshold: 1.0
+pre_generate_guardrails:
+  plugin_id:
+    - typesafe_smoke_card_number
+    - typesafe_smoke_length_4000
+    - typesafe_smoke_moderation
+post_generate_guardrails:
+  plugin_id: {  }

@@ -1,0 +1,14 @@
+langcode: en
+status: true
+dependencies:
+  enforced:
+    module:
+      - typesafe_smoke
+id: typesafe_smoke_card_number
+label: 'Smoke: payment card number'
+description: 'Blocks Decision requests containing a 16-digit card number before any API call.'
+guardrail: regexp_guardrail
+guardrail_settings:
+  regexp_pattern: '/\b(?:\d{4}[ -]?){3}\d{4}\b/'
+  scan_all_user_messages: false
+  violation_message: 'TSS-GR-CARD: payment card number detected; request not sent.'
