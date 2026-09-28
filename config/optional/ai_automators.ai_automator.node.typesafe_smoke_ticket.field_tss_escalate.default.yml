@@ -4,8 +4,6 @@ dependencies:
   config:
     - ai.ai_guardrail_set.typesafe_smoke_intake
     - field.field.node.typesafe_smoke_ticket.field_tss_escalate
-  module:
-    - ai_decision_automators
   enforced:
     module:
       - typesafe_smoke

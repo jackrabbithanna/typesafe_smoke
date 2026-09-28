@@ -6,11 +6,14 @@ namespace Drupal\typesafe_smoke\Drush\Commands;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Extension\ModuleExtensionList;
 use Drupal\Core\Site\Settings;
 use Drupal\ai\AiProviderPluginManager;
 use Drupal\key\KeyRepositoryInterface;
 use Drupal\typesafe_smoke\Battery;
+use Drupal\typesafe_smoke\BatterySelection;
+use Drupal\typesafe_smoke\CallRecorder;
 use Drupal\typesafe_smoke\CivicrmProbe;
 use Drupal\typesafe_smoke\ContribProbe;
 use Drupal\typesafe_smoke\SmokeContentManager;
@@ -23,7 +26,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 /**
  * Live smoke tests for the TypeSafe AI provider.
  *
- * Every command except status and reset makes real, billed API calls.
+ * Executing a battery, seeding tickets or running probes makes billed calls.
  */
 final class TypeSafeSmokeCommands extends DrushCommands {
 
@@ -48,6 +51,9 @@ final class TypeSafeSmokeCommands extends DrushCommands {
     private readonly CivicrmProbe $civicrm,
     private readonly ContribProbe $contrib,
     private readonly SmokeContentManager $content,
+    private readonly CallRecorder $recorder,
+    #[Autowire(service: 'entity_field.manager')]
+    private readonly EntityFieldManagerInterface $fieldManager,
   ) {
     parent::__construct();
   }
@@ -85,19 +91,29 @@ final class TypeSafeSmokeCommands extends DrushCommands {
       'format' => 'table',
     ],
   ): int {
+    try {
+      $checks = $this->battery->select($options['only'], (bool) $options['skip-large']);
+    }
+    catch (\InvalidArgumentException $e) {
+      $this->io()->error($e->getMessage());
+      return self::EXIT_FAILURE_WITH_CLARITY;
+    }
     if ($options['list']) {
-      $this->printRows(['id', 'check'], array_map(static fn ($id, $label) => ['id' => $id, 'check' => $label], array_keys($this->battery->checks()), $this->battery->checks()), $options['format']);
+      $this->printRows(['id', 'check'], array_map(static fn ($id, $label) => [
+        'id' => $id,
+        'check' => $label . ($options['skip-large'] && in_array($id, BatterySelection::LARGE, TRUE) ? ' (SKIP: --skip-large)' : ''),
+      ], array_keys($checks), $checks), $options['format']);
       return self::EXIT_SUCCESS;
     }
     if (!$this->preflight()) {
       return self::EXIT_FAILURE_WITH_CLARITY;
     }
-    \Drupal::service('typesafe_smoke.call_recorder')->start('battery-' . date('Ymd-His'));
+    $this->recorder->start('battery-' . date('Ymd-His'));
     try {
-      $rows = $this->battery->run($options['model'], $this->csv($options['only']), (bool) $options['skip-large']);
+      $rows = $this->battery->run($options['model'], array_keys($checks), (bool) $options['skip-large']);
     }
     finally {
-      \Drupal::service('typesafe_smoke.call_recorder')->stop();
+      $this->recorder->stop();
     }
     if ($options['format'] === 'json') {
       $this->output()->writeln(json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
@@ -179,6 +195,7 @@ final class TypeSafeSmokeCommands extends DrushCommands {
    * Runs the CiviCRM Meeting automators through both save paths.
    */
   #[CLI\Command(name: 'typesafe-smoke:civicrm', aliases: ['tss:civicrm'])]
+  #[CLI\Option(name: 'strict', description: 'Treat model judgment warnings as failures.')]
   #[CLI\Option(name: 'path', description: 'all, drupal or api4.')]
   #[CLI\Option(name: 'leave-enabled', description: 'Leave the meeting automators enabled for a manual CiviCRM UI test. Every Meeting save then calls TypeSafe.')]
   #[CLI\Option(name: 'disable', description: 'Only disable the meeting automators.')]
@@ -187,6 +204,7 @@ final class TypeSafeSmokeCommands extends DrushCommands {
   public function civicrm(
     array $options = [
       'path' => 'all',
+      'strict' => FALSE,
       'leave-enabled' => FALSE,
       'disable' => FALSE,
       'cleanup' => FALSE,
@@ -205,12 +223,19 @@ final class TypeSafeSmokeCommands extends DrushCommands {
       return $problems ? self::EXIT_FAILURE : self::EXIT_SUCCESS;
     }
     if (!in_array($options['path'], ['all', 'drupal', 'api4'], TRUE)) {
-      throw new \InvalidArgumentException('--path must be all, drupal or api4.');
+      $this->io()->error('--path must be all, drupal or api4.');
+      return self::EXIT_FAILURE_WITH_CLARITY;
     }
     if (!$this->preflight()) {
       return self::EXIT_FAILURE_WITH_CLARITY;
     }
-    $rows = $this->civicrm->run($options['path'], (bool) $options['leave-enabled']);
+    try {
+      $rows = $this->civicrm->run($options['path'], (bool) $options['leave-enabled']);
+    }
+    catch (\Exception $e) {
+      $this->io()->error($e->getMessage());
+      return self::EXIT_FAILURE_WITH_CLARITY;
+    }
     if ($options['format'] === 'json') {
       $this->output()->writeln(json_encode($rows, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
@@ -223,7 +248,7 @@ final class TypeSafeSmokeCommands extends DrushCommands {
     if ($options['leave-enabled']) {
       $this->io()->warning('The meeting automators are still enabled: every Meeting activity save on this site now calls TypeSafe. Run drush typesafe-smoke:civicrm --disable when done.');
     }
-    return $this->hasResult($rows, 'FAIL') ? self::EXIT_FAILURE : self::EXIT_SUCCESS;
+    return $this->exitCode($rows, (bool) $options['strict']);
   }
 
   /**
@@ -322,10 +347,9 @@ final class TypeSafeSmokeCommands extends DrushCommands {
     $enabled = array_filter($meeting_automators, static fn ($a) => str_starts_with((string) $a->id(), CivicrmProbe::PREFIX . 'field_tss_mtg_'));
     $add('CiviCRM meeting automators disabled', $enabled ? 'WARN' : 'PASS', $enabled ? count($enabled) . ' enabled: every Meeting save calls TypeSafe. Run --disable.' : 'Disabled until typesafe-smoke:civicrm runs.');
 
-    $field_manager = \Drupal::service('entity_field.manager');
     $status_fields = [];
     foreach ([['node', 'typesafe_smoke_ticket'], ['civicrm_activity', 'meeting']] as [$entity_type, $bundle]) {
-      if (isset($field_manager->getFieldDefinitions($entity_type, $bundle)['ai_automator_status'])) {
+      if (isset($this->fieldManager->getFieldDefinitions($entity_type, $bundle)['ai_automator_status'])) {
         $status_fields[] = "$entity_type.$bundle";
       }
     }

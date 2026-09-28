@@ -2,7 +2,8 @@
 #
 # "details" is the activity's own text field (base field on
 # civicrm_activity); "note" goes into the existing field_ce_meeting_note.
-# Expectations are soft: the command reports them but never fails on them.
+# Expectations are soft: mismatches warn, or fail with --strict. Execution and
+# persistence failures always fail, independently of these model judgments.
 
 M1:
   subject: '[TypeSafe smoke] Renewal conversation with major donor'

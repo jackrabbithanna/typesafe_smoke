@@ -3,8 +3,6 @@ status: false
 dependencies:
   config:
     - field.field.civicrm_activity.meeting.field_tss_mtg_outcome
-  module:
-    - ai_decision_automators
   enforced:
     module:
       - typesafe_smoke

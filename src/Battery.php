@@ -13,13 +13,16 @@ use Drupal\ai\Entity\AiGuardrailModeEnum;
 use Drupal\ai\Guardrail\AiGuardrailHelper;
 use Drupal\ai\OperationType\TextClassification\TextClassificationInput;
 use Drupal\ai\Plugin\ProviderProxy;
-use Drupal\ai_decision\DecisionRequestValidator;
-use Drupal\ai_decision\Exception\DecisionBlockedException;
-use Drupal\ai_decision\OperationType\Decision\DecisionInput;
-use Drupal\ai_decision\OperationType\Decision\DecisionResponse;
-use Drupal\ai_decision\Value\ChoiceQuestion;
-use Drupal\ai_decision\Value\ScoreQuestion;
-use Drupal\ai_decision\Value\YesNoQuestion;
+use Drupal\ai\OperationType\Decision\DecisionRequestValidator;
+use Drupal\ai\Exception\AiDecisionBlockedException;
+use Drupal\ai\OperationType\Decision\DecisionInput;
+use Drupal\ai\OperationType\Decision\DecisionResponse;
+use Drupal\ai\OperationType\Decision\Value\ChoiceQuestion;
+use Drupal\ai\OperationType\Decision\Value\AnswerValidation;
+use Drupal\ai\OperationType\Decision\Value\ChoiceAnswer;
+use Drupal\ai\OperationType\Decision\Value\ScoreAnswer;
+use Drupal\ai\OperationType\Decision\Value\ScoreQuestion;
+use Drupal\ai\OperationType\Decision\Value\YesNoQuestion;
 
 /**
  * Live checks of the TypeSafe provider through the AI provider proxy.
@@ -96,7 +99,7 @@ final class Battery {
    *
    * @param string $model
    *   The model to test.
-   * @param string[] $only
+   * @param string|string[] $only
    *   Check IDs or prefixes (C, B, G, T, M) to run; empty for all.
    * @param bool $skip_large
    *   Skip the 255-option and 10-level acceptance checks.
@@ -104,20 +107,25 @@ final class Battery {
    * @return array[]
    *   Result rows.
    */
-  public function run(string $model, array $only = [], bool $skip_large = FALSE): array {
+  public function run(string $model, string|array $only = [], bool $skip_large = FALSE): array {
+    $checks = $this->select($only, $skip_large);
     $this->model = $model;
     $rows = [];
-    foreach ($this->checks() as $id => $label) {
-      if ($only !== [] && !in_array($id, $only, TRUE) && !in_array($id[0], $only, TRUE)) {
-        continue;
-      }
-      if ($skip_large && in_array($id, ['B09', 'B11'], TRUE)) {
+    foreach ($checks as $id => $label) {
+      if ($skip_large && in_array($id, BatterySelection::LARGE, TRUE)) {
         $rows[] = $this->row($id, $label, 'SKIP', 'Skipped with --skip-large.', 0);
         continue;
       }
       $rows[] = $this->runCheck($id, $label, fn (): array => $this->dispatch($id));
     }
     return $rows;
+  }
+
+  /**
+   * Validates selectors before command preflight or recording starts.
+   */
+  public function select(string|array $only = [], bool $skip_large = FALSE): array {
+    return BatterySelection::resolve($this->checks(), $only, $skip_large);
   }
 
   /**
@@ -252,10 +260,19 @@ final class Battery {
   }
 
   /**
-   * Checks that probabilities sum to one.
+   * Checks normalization using the precision declared on the typed answer.
    */
-  private function sumsToOne(array $probabilities): bool {
-    return abs(array_sum($probabilities) - 1.0) <= 0.02;
+  private function validDistribution(ChoiceAnswer|ScoreAnswer|array $answer): bool {
+    try {
+      AnswerValidation::distribution(
+        is_array($answer) ? $answer : $answer->getProbabilities(),
+        is_array($answer) ? NULL : $answer->getPrecision(),
+      );
+      return TRUE;
+    }
+    catch (\InvalidArgumentException) {
+      return FALSE;
+    }
   }
 
   /**
@@ -357,7 +374,7 @@ final class Battery {
       'team' => new ChoiceQuestion('Which team should handle `ticket`?', $options),
     ]))->getChoice('team');
     $probabilities = $answer->getProbabilities();
-    if (!isset($options[$answer->getChoice()]) || array_diff(array_keys($options), array_keys($probabilities)) || !$this->sumsToOne($probabilities) || $answer->getConfidence() < 0 || $answer->getConfidence() > 1) {
+    if (!isset($options[$answer->getChoice()]) || array_diff(array_keys($options), array_keys($probabilities)) || !$this->validDistribution($answer) || $answer->getConfidence() < 0 || $answer->getConfidence() > 1) {
       return ['FAIL', 'Malformed choice answer: ' . json_encode($answer->toArray())];
     }
     return $this->result($answer->getChoice() === 'technical' ? 'PASS' : 'WARN', sprintf('%s (p=%s, confidence %s; expected technical)', $answer->getChoice(), $this->p($answer->getProbability($answer->getChoice())), $this->p($answer->getConfidence())));
@@ -375,7 +392,7 @@ final class Battery {
         'french',
       ]),
     ]))->getChoice('language');
-    if (!$this->sumsToOne($answer->getProbabilities())) {
+    if (!$this->validDistribution($answer)) {
       return ['FAIL', 'Probabilities do not sum to 1.'];
     }
     return $this->result($answer->getChoice() === 'german' ? 'PASS' : 'WARN', $answer->getChoice() . ' (confidence ' . $this->p($answer->getConfidence()) . '; expected german)');
@@ -393,7 +410,7 @@ final class Battery {
       ]),
     ]))->getScore('urgency');
     $level = $answer->getMostLikelyLevel();
-    if (count($answer->getProbabilities()) !== 3 || $level < 0 || $level > 2 || $answer->getScore() < 0 || $answer->getScore() > 2 || !$this->sumsToOne($answer->getProbabilities())) {
+    if (count($answer->getProbabilities()) !== 3 || $level < 0 || $level > 2 || $answer->getScore() < 0 || $answer->getScore() > 2 || !$this->validDistribution($answer)) {
       return ['FAIL', 'Malformed score answer: ' . json_encode($answer->toArray())];
     }
     return $this->result($level === 2 ? 'PASS' : 'WARN', sprintf('most likely level %d, score %s (expected level 2)', $level, number_format($answer->getScore(), 2)));
@@ -586,7 +603,7 @@ final class Battery {
    * Runs a decision with a guardrail set attached.
    */
   private function guarded(string $set, DecisionInput $input): DecisionResponse {
-    /** @var \Drupal\ai_decision\OperationType\Decision\DecisionInput $guarded */
+    /** @var \Drupal\ai\OperationType\Decision\DecisionInput $guarded */
     $guarded = $this->guardrails->applyGuardrailSetToChatInput($set, $input);
     return $this->decide($guarded);
   }
@@ -600,7 +617,7 @@ final class Battery {
       $call();
       return ['FAIL', 'Not blocked.'];
     }
-    catch (DecisionBlockedException $e) {
+    catch (AiDecisionBlockedException $e) {
       $http = $this->httpSince($before);
       if ($e->phase !== $phase || !str_contains($e->getMessage(), $code)) {
         return ['FAIL', sprintf('Blocked in %s with "%s"', $e->phase->value, $e->getMessage())];
@@ -642,7 +659,7 @@ final class Battery {
       $calls = array_column(array_filter($this->recorder->snapshot()['calls'], static fn ($c) => $c['segment'] === 'G03'), 'operation');
       return ['WARN', 'Not flagged by moderation; the decision ran. Calls: ' . implode(', ', $calls)];
     }
-    catch (DecisionBlockedException $e) {
+    catch (AiDecisionBlockedException $e) {
       $calls = array_filter($this->recorder->snapshot()['calls'], static fn ($c) => $c['segment'] === 'G03');
       $moderation = array_filter($calls, static fn ($c) => $c['operation'] === 'moderation');
       $http = $this->httpSince($before);
@@ -696,7 +713,7 @@ final class Battery {
     $scores = array_map(static fn ($i) => (float) $i->getConfidenceScore(), $items);
     $sorted = $scores;
     rsort($sorted);
-    if (count($items) !== 3 || $scores !== $sorted || !$this->sumsToOne($scores)) {
+    if (count($items) !== 3 || $scores !== $sorted || !$this->validDistribution($scores)) {
       return ['FAIL', 'Malformed items: ' . $this->items($items)];
     }
     return [$items[0]->getLabel() === 'positive' ? 'PASS' : 'WARN', $this->items($items)];

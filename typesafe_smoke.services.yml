@@ -39,7 +39,7 @@ services:
 
   typesafe_smoke.civicrm_probe:
     class: Drupal\typesafe_smoke\CivicrmProbe
-    arguments: ['@entity_type.manager', '@typesafe_smoke.content', '@typesafe_smoke.fixtures', '@typesafe_smoke.call_recorder', '@account_switcher']
+    arguments: ['@entity_type.manager', '@typesafe_smoke.content', '@typesafe_smoke.fixtures', '@typesafe_smoke.call_recorder', '@account_switcher', '@config.factory']
   Drupal\typesafe_smoke\CivicrmProbe: '@typesafe_smoke.civicrm_probe'
 
   typesafe_smoke.contrib_probe:

@@ -7,6 +7,8 @@ namespace Drupal\typesafe_smoke;
 use Drupal\Core\Logger\LogMessageParserInterface;
 use Drupal\Core\Logger\RfcLoggerTrait;
 use Drupal\ai\Event\AiExceptionEvent;
+use Drupal\ai\Event\AiProviderRequestBaseEvent;
+use Drupal\ai_automators\Event\ValuesChangeEvent;
 use Drupal\ai\Event\PostGenerateResponseEvent;
 use Drupal\ai\Event\PreGenerateResponseEvent;
 use Psr\Http\Message\RequestInterface;
@@ -83,6 +85,13 @@ final class CallRecorder implements EventSubscriberInterface, LoggerInterface {
   private array $logs = [];
 
   /**
+   * Generated field values, captured before field validation and storage.
+   *
+   * @var array<int, array>
+   */
+  private array $values = [];
+
+  /**
    * Constructs the recorder.
    */
   public function __construct(
@@ -102,6 +111,7 @@ final class CallRecorder implements EventSubscriberInterface, LoggerInterface {
       AiExceptionEvent::class => ['onException', 200],
       // Dispatched by AI Automators for every field it considers processing.
       'ai_automator.process_field' => ['onProcessField', -200],
+      ValuesChangeEvent::EVENT_NAME => ['onValuesChange', PHP_INT_MIN],
     ];
   }
 
@@ -118,6 +128,7 @@ final class CallRecorder implements EventSubscriberInterface, LoggerInterface {
     $this->threads = [];
     $this->http = [];
     $this->logs = [];
+    $this->values = [];
   }
 
   /**
@@ -155,6 +166,7 @@ final class CallRecorder implements EventSubscriberInterface, LoggerInterface {
       'calls' => $filter($this->calls),
       'http' => $filter($this->http),
       'logs' => $filter($this->logs),
+      'values' => $filter($this->values),
     ];
   }
 
@@ -183,18 +195,26 @@ final class CallRecorder implements EventSubscriberInterface, LoggerInterface {
       return;
     }
     $tags = $event->getTags();
-    $automator = $this->automator;
-    foreach ($tags as $tag) {
-      if (is_string($tag) && str_starts_with($tag, 'ai_automator:id:')) {
-        $automator = substr($tag, 16);
-      }
-    }
     $extra = ['typesafe_smoke', 'typesafe_smoke:run:' . $this->runId];
     if ($this->segment !== '') {
       $extra[] = 'typesafe_smoke:segment:' . $this->segment;
     }
     $event->setTags(array_values(array_unique(array_merge($tags, $extra))));
 
+    $this->beginCall($event);
+  }
+
+  /**
+   * Records a call, including rejections before pre-generation dispatch.
+   */
+  private function beginCall(AiProviderRequestBaseEvent $event): int {
+    $tags = $event->getTags();
+    $automator = $this->automator;
+    foreach ($tags as $tag) {
+      if (is_string($tag) && str_starts_with($tag, 'ai_automator:id:')) {
+        $automator = substr($tag, 16);
+      }
+    }
     $index = count($this->calls);
     $this->calls[] = [
       'segment' => $this->segment,
@@ -215,6 +235,7 @@ final class CallRecorder implements EventSubscriberInterface, LoggerInterface {
     ];
     $this->stack[] = $index;
     $this->threads[$event->getRequestThreadId()] = $index;
+    return $index;
   }
 
   /**
@@ -254,10 +275,10 @@ final class CallRecorder implements EventSubscriberInterface, LoggerInterface {
    * Records a provider exception.
    */
   public function onException(AiExceptionEvent $event): void {
-    $index = $this->active ? ($this->threads[$event->getRequestThreadId()] ?? NULL) : NULL;
-    if ($index === NULL) {
+    if (!$this->active) {
       return;
     }
+    $index = $this->threads[$event->getRequestThreadId()] ?? $this->beginCall($event);
     $this->calls[$index]['status'] = 'exception';
     $this->calls[$index]['exception'] = get_class($event->getException());
     $this->calls[$index]['detail'] = $event->getMessage();
@@ -275,6 +296,21 @@ final class CallRecorder implements EventSubscriberInterface, LoggerInterface {
     $this->closeOpen();
     $config = $event->automatorConfig ?? [];
     $this->automator = is_array($config) && isset($config['id']) ? (string) $config['id'] : NULL;
+  }
+
+  /**
+   * Captures the final generated scalar values without retaining entities.
+   */
+  public function onValuesChange(ValuesChangeEvent $event): void {
+    if (!$this->active) {
+      return;
+    }
+    $this->values[] = [
+      'segment' => $this->segment,
+      'automator' => $event->getAutomatorConfig()['id'] ?? $this->automator,
+      'field' => $event->getFieldDefinition()->getName(),
+      'values' => $event->getValues(),
+    ];
   }
 
   /**

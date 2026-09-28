@@ -5,7 +5,7 @@ TypeSafe AI provider (`ai_provider_typesafeai`, Jev models) on this site:
 sample content, Decision automators, guardrails, contrib integrations and
 Drush commands that report what happened.
 
-> **Every command except `status` and `reset` makes real, billed API calls.**
+> **Executing a battery, seeding tickets or running probes makes billed API calls.**
 > Saving a smoke ticket in the UI also calls the API. Uninstall the module
 > when testing is finished; uninstalling deletes its content and
 > configuration.
@@ -58,16 +58,36 @@ calls. None of this belongs in `config/sync`.
 | `drush tss:battery` | ~20 | 28 checks through the AI provider proxy: question types, structured fields, multi-question requests, 255/256 options, 10/11 levels, errors, guardrails, classification, moderation. HTTP requests are counted by middleware. |
 | `drush tss:seed` | ~150 | Creates 16 tickets as uid 1; automators call TypeSafe on save. `--dry-run`, `--only=T01,T14`, `--force`. |
 | `drush tss:report` | 0 | Actual vs expected per ticket and field, guardrail blocks, agreement %, latency, tokens. `--only-mismatches`, `--format=json`. |
-| `drush tss:civicrm` | ~8 | Meeting automators through four save paths (Drupal create/update, API4 create/update). `--leave-enabled`, `--disable`, `--cleanup`. |
+| `drush tss:civicrm` | 8 or 14 | Meeting automators through four save paths (Drupal create/update, API4 create/update). API4 automation is skipped when activity hooks are disabled. `--strict`, `--leave-enabled`, `--disable`, `--cleanup`. |
 | `drush tss:contrib` | ~5 | Reproduces the known ai_validations and content suggestions problems. |
 | `drush tss:reset` | 0 | `--nodes`, `--civicrm`, `--logs` or `--all`. |
 
 Exit codes:
 - `0`: no hard failures.
 - `1`: a hard failure, such as a missing guardrail block, a value outside the allowed range, or a swallowed automator error.
-- `3`: preflight stopped the run before any API call.
+- `3`: invalid selection/options, failed preflight or probe setup failure.
 
 Soft mismatches are warnings and reflect model judgement; `--strict` turns them into failures.
+
+`battery --only=B,G` accepts groups or exact IDs. Unknown tokens (including a
+typo mixed with valid IDs), separator-only input, and selections entirely
+excluded by `--skip-large` fail before preflight, recording or API access.
+Omitting `--only` or supplying an empty value selects all checks. Duplicates
+are removed and checks run in catalog order. `--list` uses the same validation
+without making calls; individually excluded checks still appear as skip rows.
+
+The CiviCRM probe expects one call per applicable field: A (Drupal create)
+runs four, B (API4 create) runs three detail-based automators, C changes A's
+details through API4 and runs three, and D changes B's details and Drupal staff
+note and runs four. API4 paths report `SKIP` if global or activity-specific
+CiviCRM hooks are disabled; saves still run to prepare the later paths. The
+probe never changes those hook settings.
+
+Missing, duplicate or failed calls, worker warnings/errors, invalid fields,
+missing generated values and differences between generated and reloaded values
+are `FAIL`. Only fixture model-judgment mismatches are `WARN`. Account switching
+and recording are restored even after a failure, and smoke automators are
+disabled unless `--leave-enabled` was explicitly supplied.
 
 A typical run:
 
@@ -106,7 +126,7 @@ every save of a ticket runs the automators again and costs API calls.
 
 ## Explorer samples
 
-**Decision** (`/admin/config/ai/explorers/decision`).
+**Decision** (`/admin/config/ai/explorers/decision_generator`).
 
 State:
 
@@ -149,6 +169,21 @@ Expected results:
 - The abusive text in `fixtures/probes.yml` flags harassment.
 
 Expand `categories` in the output to see every probability.
+
+## Integration hardening verification (2026-09-28)
+
+- Live battery: **28 PASS**, 20 HTTP requests, including the 255-option and
+  10-level checks. Invalid requests were recorded as exceptions with zero HTTP.
+- Actual Drush selector checks: unknown/mixed tokens, separator-only input and
+  fully excluded selections returned exit 3, including `--list`. Valid duplicate
+  IDs were deduplicated in catalog order.
+- CiviCRM: A and D **PASS**, four calls each, generated values persisted
+  unchanged. B and C **SKIP**, zero calls, because activity hooks remain disabled.
+  Probe activities 673 and 674 remain tracked for inspection and normal cleanup.
+- Offline tests cover interval feasibility and malformed answers, rejection
+  before paid guardrails, direct/proxied transport, selector errors, hard vs soft
+  CiviCRM results, strict exits, and cleanup after setup/save failures. Enabled
+  API4 automation has evaluator coverage but was not exercised live on this site.
 
 ## Findings from the first run (2026-09-24)
 

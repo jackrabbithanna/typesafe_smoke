@@ -3,8 +3,6 @@ status: true
 dependencies:
   config:
     - field.field.node.typesafe_smoke_ticket.field_tss_team
-  module:
-    - ai_decision_automators
   enforced:
     module:
       - typesafe_smoke
