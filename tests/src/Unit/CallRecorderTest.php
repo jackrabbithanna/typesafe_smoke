@@ -61,4 +61,23 @@ class CallRecorderTest extends TestCase {
     $this->assertSame([], $recorder->snapshot()['values']);
   }
 
+  /**
+   * AI Validations log entries are kept apart from automator logs.
+   */
+  public function testValidationLogs(): void {
+    $recorder = new CallRecorder(new LogMessageParser());
+    $recorder->start('test');
+    $recorder->segment('V1');
+    $recorder->log(3, 'AI text classification provider error: @message', [
+      'channel' => 'ai_validations',
+      '@message' => 'No labels.',
+    ]);
+    $recorder->log(3, 'Ignored', ['channel' => 'php']);
+    $snapshot = $recorder->snapshot('V1');
+    $this->assertSame([], $snapshot['logs']);
+    $this->assertSame('AI text classification provider error: No labels.', $snapshot['validation_logs'][0]['message']);
+    $recorder->start('next');
+    $this->assertSame([], $recorder->snapshot()['validation_logs']);
+  }
+
 }

@@ -252,7 +252,7 @@ final class TypeSafeSmokeCommands extends DrushCommands {
   }
 
   /**
-   * Reproduces known contrib module behaviour with TypeSafe.
+   * Checks known contrib problems with TypeSafe: REPRODUCED, FIXED or WARN.
    */
   #[CLI\Command(name: 'typesafe-smoke:contrib', aliases: ['tss:contrib'])]
   #[CLI\Option(name: 'format', description: 'table or json.')]

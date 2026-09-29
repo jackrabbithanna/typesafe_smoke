@@ -85,6 +85,13 @@ final class CallRecorder implements EventSubscriberInterface, LoggerInterface {
   private array $logs = [];
 
   /**
+   * Recorded ai_validations log entries (provider errors and warnings).
+   *
+   * @var array<int, array>
+   */
+  private array $validationLogs = [];
+
+  /**
    * Generated field values, captured before field validation and storage.
    *
    * @var array<int, array>
@@ -128,6 +135,7 @@ final class CallRecorder implements EventSubscriberInterface, LoggerInterface {
     $this->threads = [];
     $this->http = [];
     $this->logs = [];
+    $this->validationLogs = [];
     $this->values = [];
   }
 
@@ -166,6 +174,7 @@ final class CallRecorder implements EventSubscriberInterface, LoggerInterface {
       'calls' => $filter($this->calls),
       'http' => $filter($this->http),
       'logs' => $filter($this->logs),
+      'validation_logs' => $filter($this->validationLogs),
       'values' => $filter($this->values),
     ];
   }
@@ -340,11 +349,22 @@ final class CallRecorder implements EventSubscriberInterface, LoggerInterface {
    * {@inheritdoc}
    */
   public function log($level, string|\Stringable $message, array $context = []): void {
-    if (!$this->active || ($context['channel'] ?? '') !== 'ai_automator') {
+    $channel = $context['channel'] ?? '';
+    if (!$this->active || !in_array($channel, ['ai_automator', 'ai_validations'], TRUE)) {
       return;
     }
     $placeholders = $this->parser->parseMessagePlaceholders($message, $context);
     $text = strip_tags(empty($placeholders) ? (string) $message : strtr((string) $message, $placeholders));
+    if ($channel === 'ai_validations') {
+      // Validation rules log provider errors and missing categories; these
+      // do not end an automator run, so open calls stay open.
+      $this->validationLogs[] = [
+        'segment' => $this->segment,
+        'level' => $level,
+        'message' => $text,
+      ];
+      return;
+    }
     $this->logs[] = [
       'segment' => $this->segment,
       'automator' => $this->automator,

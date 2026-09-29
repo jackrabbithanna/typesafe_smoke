@@ -29,6 +29,9 @@ field_validation_rules:
     data:
       validate_mode: default
       tag: spam
+      labels:
+        - spam
+        - not_spam
       finder: exact
       model: typesafeai__jev-latest
       minimum: 0.5
@@ -47,6 +50,9 @@ field_validation_rules:
     data:
       validate_mode: default
       tag: spam
+      labels:
+        - spam
+        - not_spam
       finder: exact
       model: typesafeai__jev-latest
       minimum: 0.5

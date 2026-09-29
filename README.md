@@ -18,9 +18,9 @@ Drush commands that report what happened.
 
   | Field | Automator | Exercises |
   |---|---|---|
-  | `refund` | `decision_boolean` | yes/no, threshold 0.5 |
+  | `refund` | `decision_boolean` | noul (true/false), threshold 0.5 |
   | `team` | `decision_list_string` | single choice, labels as descriptions |
-  | `topics` | `decision_list_string` | multi-value: one yes/no per option |
+  | `topics` | `decision_list_string` | multi-value: one noul (true/false) per option |
   | `priority` | `decision_list_integer` | `jev-preview`, min confidence 0.3 |
   | `frustration` | `decision_integer` | 5-level score, expected value |
   | `churn_risk` | `decision_decimal` | 4-level score, expected value |
@@ -59,7 +59,7 @@ calls. None of this belongs in `config/sync`.
 | `drush tss:seed` | ~150 | Creates 16 tickets as uid 1; automators call TypeSafe on save. `--dry-run`, `--only=T01,T14`, `--force`. |
 | `drush tss:report` | 0 | Actual vs expected per ticket and field, guardrail blocks, agreement %, latency, tokens. `--only-mismatches`, `--format=json`. |
 | `drush tss:civicrm` | 8 or 14 | Meeting automators through four save paths (Drupal create/update, API4 create/update). API4 automation is skipped when activity hooks are disabled. `--strict`, `--leave-enabled`, `--disable`, `--cleanup`. |
-| `drush tss:contrib` | ~5 | Reproduces the known ai_validations and content suggestions problems. |
+| `drush tss:contrib` | ~5 | Checks the known ai_validations and content suggestions problems: REPRODUCED, FIXED (a pass) or WARN. |
 | `drush tss:reset` | 0 | `--nodes`, `--civicrm`, `--logs` or `--all`. |
 
 Exit codes:
@@ -139,12 +139,12 @@ Questions:
 
 ```json
 {
-  "refund_requested": {"type": "yes_no", "instructions": "Is the customer in `ticket` asking for money back?"},
+  "refund_requested": {"type": "noul", "instructions": "Is the customer in `ticket` asking for money back?"},
   "team": {"type": "choice", "instructions": "Which team should handle `ticket`?",
     "criteria": {"billing": "Charges, invoices, refunds", "technical": "Bugs and outages", "sales": "Pricing and quotes"}},
   "frustration": {"type": "score", "instructions": "How frustrated is the customer?",
     "criteria": ["Calm", "Mildly annoyed", "Frustrated", "Very frustrated", "Furious"]},
-  "churn": {"type": "yes_no",
+  "churn": {"type": "noul",
     "instructions": {"question": "Is the customer at risk of leaving?", "focus": "Repeated problems or threats to cancel"},
     "criteria": {"true": "The customer signals they may leave.", "false": "No sign of leaving."}}
 }
@@ -184,6 +184,43 @@ Expand `categories` in the output to see every probability.
   before paid guardrails, direct/proxied transport, selector errors, hard vs soft
   CiviCRM results, strict exits, and cleanup after setup/save failures. Enabled
   API4 automation has evaluator coverage but was not exercised live on this site.
+
+## Contrib fixes (2026-09-28)
+
+Upstream fixes are prepared in `docs/contrib-fixes/` (site repo): candidate
+labels and error logging for ai_validations classification rules, moderation
+category warnings, a config schema, and "Moderate text" category filtering in
+ai_content_suggestions. The site runs them as working-tree changes in the
+ai_validations 1.3.x and ai_content_suggestions 1.5.x git checkouts.
+
+- The TSS-V1 and TSS-V2 rules now send `labels: [spam, not_spam]`. Add the
+  labels only while the patched ai_validations is installed: an unpatched
+  version rejects the unknown option and probe validation breaks.
+- `tss:contrib` results while TypeSafe still returns nested moderation
+  information:
+
+  | Probe | Result |
+  |---|---|
+  | V1, V2 | FIXED: labels reach TypeSafe and both rules reject the spam text |
+  | V3 | WORKS |
+  | V4 | REPRODUCED; ai_validations now logs a warning naming the missing categories and the available keys |
+  | V5 | REPRODUCED with a new symptom: "Max_probability (0.96), Threshold (0.50)". Numeric metadata keys pass the new 0.5 cut-off |
+
+  V4 and V5 need TypeSafe to return a flat category map (separate work).
+- `tss:battery --only=M,T`: 6/6 PASS.
+- **CiviCRM activity hooks are now enabled**
+  (`disable_hooks_per_type.civicrm_activity: 0`), and `tss:civicrm` fails
+  on all four paths:
+  - A and D (Drupal entity saves) run the detail-based automators twice,
+    because the CiviCRM save re-dispatches the Drupal entity hooks. On D the
+    second pass leaves those fields empty.
+  - B (API4 create) runs the automators, but the generated values are not
+    persisted.
+  - C (API4 update) runs no automators.
+
+  This is an interaction between civicrm_entity hooks and AI Automators,
+  unrelated to the contrib fixes; it needs its own investigation. With hooks
+  disabled, A and D pass and B and C are skipped.
 
 ## Findings from the first run (2026-09-24)
 

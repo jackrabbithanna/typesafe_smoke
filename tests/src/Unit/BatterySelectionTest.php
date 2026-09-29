@@ -22,7 +22,7 @@ class BatterySelectionTest extends TestCase {
   public function testSelection(): void {
     $checks = [
       'C01' => 'Capabilities',
-      'B01' => 'Yes/no',
+      'B01' => 'Noul',
       'B09' => 'Large choice',
       'B11' => 'Large score',
       'G01' => 'Guardrail',

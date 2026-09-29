@@ -7,7 +7,7 @@ dependencies:
     module:
       - typesafe_smoke
 id: node.typesafe_smoke_ticket.field_tss_topics.default
-label: 'Smoke: topics (multi-value yes/no)'
+label: 'Smoke: topics (multi-value noul true/false)'
 rule: decision_list_string
 input_mode: base
 weight: 30
@@ -28,7 +28,7 @@ plugin_config:
   automator_prompt: 'Which topics does the ticket in `content` raise?'
   automator_token: ''
   automator_edit_mode: 1
-  automator_label: 'Smoke: topics (multi-value yes/no)'
+  automator_label: 'Smoke: topics (multi-value noul true/false)'
   automator_weight: '30'
   automator_worker_type: direct
   automator_ai_provider: typesafeai

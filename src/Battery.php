@@ -22,7 +22,7 @@ use Drupal\ai\OperationType\Decision\Value\AnswerValidation;
 use Drupal\ai\OperationType\Decision\Value\ChoiceAnswer;
 use Drupal\ai\OperationType\Decision\Value\ScoreAnswer;
 use Drupal\ai\OperationType\Decision\Value\ScoreQuestion;
-use Drupal\ai\OperationType\Decision\Value\YesNoQuestion;
+use Drupal\ai\OperationType\Decision\Value\NoulQuestion;
 
 /**
  * Live checks of the TypeSafe provider through the AI provider proxy.
@@ -65,8 +65,8 @@ final class Battery {
     return [
       'C01' => 'Capabilities declared locally (no HTTP)',
       'C02' => 'Model discovery',
-      'B01' => 'Yes/no, positive case',
-      'B02' => 'Yes/no, negative case',
+      'B01' => 'Noul (true/false), positive case',
+      'B02' => 'Noul (true/false), negative case',
       'B03' => 'Choice with descriptions over structured state',
       'B04' => 'Choice built with fromOptions()',
       'B05' => 'Score, three levels',
@@ -328,31 +328,31 @@ final class Battery {
   }
 
   /**
-   * Check B01: Yes/no, positive case.
+   * Check B01: Noul (true/false), positive case.
    */
   private function checkB01(): array {
     $answer = $this->decide(new DecisionInput('The customer writes: "I was charged twice this month. Please refund the duplicate payment."', [
-      'refund' => new YesNoQuestion('Is the customer asking for money back?'),
-    ]))->getYesNo('refund');
+      'refund' => new NoulQuestion('Is the customer asking for money back?'),
+    ]))->getNoul('refund');
     $p = $answer->getProbability();
     if ($p < 0 || $p > 1) {
       return ['FAIL', 'Probability out of range: ' . $p];
     }
-    return [$p >= 0.5 ? 'PASS' : 'WARN', 'P(yes) = ' . $this->p($p) . ' (expected >= 0.5)'];
+    return [$p >= 0.5 ? 'PASS' : 'WARN', 'P(true) = ' . $this->p($p) . ' (expected >= 0.5)'];
   }
 
   /**
-   * Check B02: Yes/no, negative case.
+   * Check B02: Noul (true/false), negative case.
    */
   private function checkB02(): array {
     $answer = $this->decide(new DecisionInput('The customer writes: "The new dashboard is great, thank you!"', [
-      'refund' => new YesNoQuestion('Is the customer asking for money back?'),
-    ]))->getYesNo('refund');
+      'refund' => new NoulQuestion('Is the customer asking for money back?'),
+    ]))->getNoul('refund');
     $p = $answer->getProbability();
     if ($p < 0 || $p > 1) {
       return ['FAIL', 'Probability out of range: ' . $p];
     }
-    return [$p < 0.5 ? 'PASS' : 'WARN', 'P(yes) = ' . $this->p($p) . ' (expected < 0.5)'];
+    return [$p < 0.5 ? 'PASS' : 'WARN', 'P(true) = ' . $this->p($p) . ' (expected < 0.5)'];
   }
 
   /**
@@ -427,7 +427,7 @@ final class Battery {
       ],
     ];
     $input = new DecisionInput($state, [
-      'churn' => new YesNoQuestion(
+      'churn' => new NoulQuestion(
         [
           'question' => 'Is the customer at risk of leaving?',
           'focus' => 'Explicit or implied intent to cancel or switch vendors.',
@@ -454,7 +454,7 @@ final class Battery {
       return ['FAIL', 'Declared capabilities do not cover the request.'];
     }
     $response = $this->decide($input, NULL, $provider);
-    return $this->result('PASS', sprintf('%d capabilities required; churn P=%s, team %s, risk level %d', count($required), $this->p($response->getYesNo('churn')->getProbability()), $response->getChoice('team')->getChoice(), $response->getScore('risk')->getMostLikelyLevel()));
+    return $this->result('PASS', sprintf('%d capabilities required; churn P=%s, team %s, risk level %d', count($required), $this->p($response->getNoul('churn')->getProbability()), $response->getChoice('team')->getChoice(), $response->getScore('risk')->getMostLikelyLevel()));
   }
 
   /**
@@ -462,7 +462,7 @@ final class Battery {
    */
   private function multiInput(): DecisionInput {
     return new DecisionInput(['ticket' => ['message' => 'I was charged twice and I am furious. Refund me today or I cancel.']], [
-      'refund' => new YesNoQuestion('Is the customer asking for money back?'),
+      'refund' => new NoulQuestion('Is the customer asking for money back?'),
       'team' => new ChoiceQuestion('Which team should handle `ticket`?', [
         'billing' => 'Billing',
         'technical' => 'Technical',
@@ -481,8 +481,8 @@ final class Battery {
     if (count($response->getAnswers()) !== 3 || count($calls) !== 1 || $this->http() !== 1) {
       return $this->result('FAIL', sprintf('%d answers, %d calls, %d HTTP requests (expected 3/1/1)', count($response->getAnswers()), count($calls), $this->http()));
     }
-    $ok = $response->getYesNo('refund')->isLikely() && $response->getChoice('team')->getChoice() === 'billing' && $response->getScore('anger')->getMostLikelyLevel() === 2;
-    return $this->result($ok ? 'PASS' : 'WARN', sprintf('one HTTP request; refund P=%s, team %s, anger level %d', $this->p($response->getYesNo('refund')->getProbability()), $response->getChoice('team')->getChoice(), $response->getScore('anger')->getMostLikelyLevel()));
+    $ok = $response->getNoul('refund')->isLikely() && $response->getChoice('team')->getChoice() === 'billing' && $response->getScore('anger')->getMostLikelyLevel() === 2;
+    return $this->result($ok ? 'PASS' : 'WARN', sprintf('one HTTP request; refund P=%s, team %s, anger level %d', $this->p($response->getNoul('refund')->getProbability()), $response->getChoice('team')->getChoice(), $response->getScore('anger')->getMostLikelyLevel()));
   }
 
   /**
@@ -493,7 +493,7 @@ final class Battery {
     if (count($response->getAnswers()) !== 3) {
       return ['FAIL', count($response->getAnswers()) . ' answers'];
     }
-    return $this->result('PASS', sprintf('response model "%s"; refund P=%s, team %s, anger level %d', $response->getModel(), $this->p($response->getYesNo('refund')->getProbability()), $response->getChoice('team')->getChoice(), $response->getScore('anger')->getMostLikelyLevel()));
+    return $this->result('PASS', sprintf('response model "%s"; refund P=%s, team %s, anger level %d', $response->getModel(), $this->p($response->getNoul('refund')->getProbability()), $response->getChoice('team')->getChoice(), $response->getScore('anger')->getMostLikelyLevel()));
   }
 
   /**
@@ -567,7 +567,7 @@ final class Battery {
   private function checkB14(): array {
     $before = count($this->recorder->snapshot()['http']);
     try {
-      $this->decide(new DecisionInput('Hello', ['q' => new YesNoQuestion('Is this a greeting?')]), 'jev-does-not-exist');
+      $this->decide(new DecisionInput('Hello', ['q' => new NoulQuestion('Is this a greeting?')]), 'jev-does-not-exist');
       return ['WARN', 'The API accepted an unknown model ID.'];
     }
     catch (AiExceptionInterface $e) {
@@ -585,7 +585,7 @@ final class Battery {
     $provider->setAuthentication('tss-invalid-key-000000');
     $before = count($this->recorder->snapshot()['http']);
     try {
-      $this->decide(new DecisionInput('Hello', ['q' => new YesNoQuestion('Is this a greeting?')]), NULL, $provider);
+      $this->decide(new DecisionInput('Hello', ['q' => new NoulQuestion('Is this a greeting?')]), NULL, $provider);
       return ['FAIL', 'The API accepted an invalid key.'];
     }
     catch (\Throwable $e) {
@@ -634,7 +634,7 @@ final class Battery {
    */
   private function checkG01(): array {
     return $this->expectBlocked(fn () => $this->guarded('typesafe_smoke_pii', new DecisionInput(['message' => 'Refund to card 4111 1111 1111 1111 please.'], [
-      'refund' => new YesNoQuestion('Is the customer asking for money back?'),
+      'refund' => new NoulQuestion('Is the customer asking for money back?'),
     ])), 'TSS-GR-CARD', AiGuardrailModeEnum::PreGenerate, 0);
   }
 
@@ -643,7 +643,7 @@ final class Battery {
    */
   private function checkG02(): array {
     return $this->expectBlocked(fn () => $this->guarded('typesafe_smoke_intake', new DecisionInput(['message' => str_repeat('The import failed again today. ', 170)], [
-      'bug' => new YesNoQuestion('Is this a bug report?'),
+      'bug' => new NoulQuestion('Is this a bug report?'),
     ])), 'TSS-GR-LENGTH', AiGuardrailModeEnum::PreGenerate, 0);
   }
 
@@ -654,7 +654,7 @@ final class Battery {
     $before = count($this->recorder->snapshot()['http']);
     try {
       $this->guarded('typesafe_smoke_intake', new DecisionInput(['message' => $this->fixtures->probes()['abusive']], [
-        'escalate' => new YesNoQuestion('Should this ticket be escalated?'),
+        'escalate' => new NoulQuestion('Should this ticket be escalated?'),
       ]));
       $calls = array_column(array_filter($this->recorder->snapshot()['calls'], static fn ($c) => $c['segment'] === 'G03'), 'operation');
       return ['WARN', 'Not flagged by moderation; the decision ran. Calls: ' . implode(', ', $calls)];
@@ -675,7 +675,7 @@ final class Battery {
    */
   private function checkG04(): array {
     return $this->expectBlocked(fn () => $this->guarded('typesafe_smoke_post_probe', new DecisionInput('Hello there!', [
-      'post_probe_target' => new YesNoQuestion('Is this a greeting?'),
+      'post_probe_target' => new NoulQuestion('Is this a greeting?'),
     ])), 'TSS-GR-POST', AiGuardrailModeEnum::PostGenerate, 1);
   }
 
@@ -684,7 +684,7 @@ final class Battery {
    */
   private function checkG05(): array {
     return $this->expectRejected(fn () => $this->guarded('typesafe_smoke_unsupported_probe', new DecisionInput('Hello', [
-      'q' => new YesNoQuestion('Is this a greeting?'),
+      'q' => new NoulQuestion('Is this a greeting?'),
     ])), AiSetupFailureException::class);
   }
 

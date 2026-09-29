@@ -14,7 +14,7 @@ field_name: field_tss_topics
 entity_type: node
 bundle: typesafe_smoke_ticket
 label: Topics
-description: 'decision_list_string, multiple values: one yes/no question per topic, threshold 0.5.'
+description: 'decision_list_string, multiple values: one noul (true/false) question per topic, threshold 0.5.'
 required: false
 translatable: true
 default_value: {  }
