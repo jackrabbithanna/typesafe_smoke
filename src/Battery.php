@@ -8,6 +8,7 @@ use Drupal\ai\AiProviderPluginManager;
 use Drupal\ai\Enum\AiModelCapability;
 use Drupal\ai\Exception\AiBadRequestException;
 use Drupal\ai\Exception\AiExceptionInterface;
+use Drupal\ai\Exception\AiMissingFeatureException;
 use Drupal\ai\Exception\AiSetupFailureException;
 use Drupal\ai\Entity\AiGuardrailModeEnum;
 use Drupal\ai\Guardrail\AiGuardrailHelper;
@@ -23,6 +24,7 @@ use Drupal\ai\OperationType\Decision\Value\ChoiceAnswer;
 use Drupal\ai\OperationType\Decision\Value\ScoreAnswer;
 use Drupal\ai\OperationType\Decision\Value\ScoreQuestion;
 use Drupal\ai\OperationType\Decision\Value\NoulQuestion;
+use Drupal\ai\OperationType\GenericType\ImageFile;
 
 /**
  * Live checks of the TypeSafe provider through the AI provider proxy.
@@ -80,6 +82,7 @@ final class Battery {
       'B13' => 'Request without questions rejected before HTTP',
       'B14' => 'Unknown model ID',
       'B15' => 'Invalid API key',
+      'B16' => 'Image file rejected before HTTP (Jev is text-only)',
       'G01' => 'Guardrail: card number blocks before HTTP',
       'G02' => 'Guardrail: length limit blocks before HTTP',
       'G03' => 'Guardrail: TypeSafe moderation blocks abusive state',
@@ -150,6 +153,7 @@ final class Battery {
       'B13' => $this->checkB13(),
       'B14' => $this->checkB14(),
       'B15' => $this->checkB15(),
+      'B16' => $this->checkB16(),
       'G01' => $this->checkG01(),
       'G02' => $this->checkG02(),
       'G03' => $this->checkG03(),
@@ -288,11 +292,15 @@ final class Battery {
   private function checkC01(): array {
     $provider = $this->provider();
     $declared = $provider->getDecisionCapabilities($this->model);
-    $expected = array_filter(AiModelCapability::cases(), static fn (AiModelCapability $c): bool => $c->getBaseOperationType() === 'decision');
+    // Jev is text-only: every Decision capability except image files.
+    $expected = array_filter(AiModelCapability::cases(), static fn (AiModelCapability $c): bool => $c->getBaseOperationType() === 'decision' && $c !== AiModelCapability::DecisionImageFiles);
     $missing = array_filter($expected, static fn (AiModelCapability $c): bool => !$declared->has($c));
     $problems = [];
     if ($missing) {
       $problems[] = 'missing ' . implode(', ', array_map(static fn ($c) => $c->value, $missing));
+    }
+    if ($declared->has(AiModelCapability::DecisionImageFiles) || $declared->maxFiles !== NULL) {
+      $problems[] = 'image files declared for a text-only model';
     }
     if ($declared->maxChoiceOptions !== 255 || $declared->maxScoreLevels !== 10 || $declared->maxQuestions !== NULL) {
       $problems[] = sprintf('limits %s/%s/%s, expected 255/10/null', var_export($declared->maxChoiceOptions, TRUE), var_export($declared->maxScoreLevels, TRUE), var_export($declared->maxQuestions, TRUE));
@@ -312,7 +320,7 @@ final class Battery {
     if ($problems) {
       return $this->result('FAIL', implode('; ', $problems));
     }
-    return $this->result('PASS', count($expected) . ' Decision capabilities declared; limits 255 options / 10 levels / no question limit; no HTTP.');
+    return $this->result('PASS', count($expected) . ' Decision capabilities declared, no image files; limits 255 options / 10 levels / no question limit; no HTTP.');
   }
 
   /**
@@ -338,7 +346,7 @@ final class Battery {
     if ($p < 0 || $p > 1) {
       return ['FAIL', 'Probability out of range: ' . $p];
     }
-    return [$p >= 0.5 ? 'PASS' : 'WARN', 'P(true) = ' . $this->p($p) . ' (expected >= 0.5)'];
+    return [$p > 0.5 ? 'PASS' : 'WARN', 'P(true) = ' . $this->p($p) . ' (expected > 0.5)'];
   }
 
   /**
@@ -575,6 +583,15 @@ final class Battery {
       $statuses = implode(',', array_map(static fn ($r) => (string) $r['status'], $requests));
       return $this->result('PASS', (new \ReflectionClass($e))->getShortName() . " after HTTP $statuses: " . mb_strimwidth($e->getMessage(), 0, 160, '…'));
     }
+  }
+
+  /**
+   * Check B16: Image file rejected before HTTP (Jev is text-only).
+   */
+  private function checkB16(): array {
+    // A 1x1 PNG: Jev declares no image support, so no request is sent.
+    $photo = new ImageFile((string) base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', TRUE), 'image/png', 'listing.png');
+    return $this->expectRejected(fn () => $this->decide(new DecisionInput(['listing' => ['color' => 'red']], ['color_matches' => new NoulQuestion('The product in the photo matches `listing.color`.')], [$photo])), AiMissingFeatureException::class);
   }
 
   /**

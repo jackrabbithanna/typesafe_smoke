@@ -55,7 +55,7 @@ calls. None of this belongs in `config/sync`.
 | Command | API calls | What it does |
 |---|---|---|
 | `drush tss:status` | 0 | Preflight: provider, key, defaults, recursion risks, config counts, tracked content. |
-| `drush tss:battery` | ~20 | 28 checks through the AI provider proxy: question types, structured fields, multi-question requests, 255/256 options, 10/11 levels, errors, guardrails, classification, moderation. HTTP requests are counted by middleware. |
+| `drush tss:battery` | ~20 | 29 checks through the AI provider proxy: question types, structured fields, multi-question requests, 255/256 options, 10/11 levels, image-file rejection, errors, guardrails, classification, moderation. HTTP requests are counted by middleware. |
 | `drush tss:seed` | ~150 | Creates 16 tickets as uid 1; automators call TypeSafe on save. `--dry-run`, `--only=T01,T14`, `--force`. |
 | `drush tss:report` | 0 | Actual vs expected per ticket and field, guardrail blocks, agreement %, latency, tokens. `--only-mismatches`, `--format=json`. |
 | `drush tss:civicrm` | 8 or 14 | Meeting automators through four save paths (Drupal create/update, API4 create/update). API4 automation is skipped when activity hooks are disabled. `--strict`, `--leave-enabled`, `--disable`, `--cleanup`. |
