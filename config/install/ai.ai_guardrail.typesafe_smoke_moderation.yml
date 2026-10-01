@@ -6,7 +6,7 @@ dependencies:
       - typesafe_smoke
 id: typesafe_smoke_moderation
 label: 'Smoke: TypeSafe moderation'
-description: 'Moderates the Decision state with TypeSafe before the Decision call. Costs one extra API call.'
+description: 'Moderates the Decision state and question text with TypeSafe before the Decision call; requests with images are stopped. Costs one extra API call.'
 guardrail: moderation
 guardrail_settings:
   flagged_message: 'TSS-GR-MOD: flagged by TypeSafe moderation.'

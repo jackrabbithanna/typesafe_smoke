@@ -6,7 +6,7 @@ dependencies:
       - typesafe_smoke
 id: typesafe_smoke_post_answer_probe
 label: 'Smoke: post-phase probe'
-description: 'Battery only: always matches the answer for question "post_probe_target", so the block happens after the API call.'
+description: 'Battery only: matches the score legend level "post_probe_target" that TypeSafe echoes in the G04 answer, so the block happens after the API call.'
 guardrail: regexp_guardrail
 guardrail_settings:
   regexp_pattern: /^post_probe_target$/

@@ -86,8 +86,9 @@ final class Battery {
       'G01' => 'Guardrail: card number blocks before HTTP',
       'G02' => 'Guardrail: length limit blocks before HTTP',
       'G03' => 'Guardrail: TypeSafe moderation blocks abusive state',
-      'G04' => 'Guardrail: post-phase block after the call',
+      'G04' => 'Guardrail: post-phase block on answer text after the call',
       'G05' => 'Guardrail: unsupported plugin is a setup failure',
+      'G06' => 'Guardrail: TypeSafe moderation covers question text',
       'T01' => 'Text classification with labels',
       'T02' => 'Text classification without labels rejected before HTTP',
       'T03' => 'Text classification with custom instructions',
@@ -159,6 +160,7 @@ final class Battery {
       'G03' => $this->checkG03(),
       'G04' => $this->checkG04(),
       'G05' => $this->checkG05(),
+      'G06' => $this->checkG06(),
       'T01' => $this->checkT01(),
       'T02' => $this->checkT02(),
       'T03' => $this->checkT03(),
@@ -688,11 +690,15 @@ final class Battery {
   }
 
   /**
-   * Check G04: Guardrail: post-phase block after the call.
+   * Check G04: Guardrail: post-phase block on answer text after the call.
+   *
+   * Post-generation RegEx checks scan answer text only: chosen options and
+   * score legends, never question IDs or numbers. TypeSafe echoes level
+   * descriptions in the legend, so the probe matches whatever the model rates.
    */
   private function checkG04(): array {
     return $this->expectBlocked(fn () => $this->guarded('typesafe_smoke_post_probe', new DecisionInput('Hello there!', [
-      'post_probe_target' => new NoulQuestion('Is this a greeting?'),
+      'formality' => new ScoreQuestion('How formal is this greeting?', ['post_probe_target', 'Formal']),
     ])), 'TSS-GR-POST', AiGuardrailModeEnum::PostGenerate, 1);
   }
 
@@ -703,6 +709,34 @@ final class Battery {
     return $this->expectRejected(fn () => $this->guarded('typesafe_smoke_unsupported_probe', new DecisionInput('Hello', [
       'q' => new NoulQuestion('Is this a greeting?'),
     ])), AiSetupFailureException::class);
+  }
+
+  /**
+   * Check G06: Guardrail: TypeSafe moderation covers question text.
+   *
+   * Moderation checks the question instructions and criteria as well as the
+   * state, so abusive text in a question is stopped although the state is
+   * benign. Like G03, a miss is a model judgment and only a warning. In
+   * a first run, the same sentence quoted inside a neutral question was not
+   * flagged, so the probe makes the statement itself the question text.
+   */
+  private function checkG06(): array {
+    $before = count($this->recorder->snapshot()['http']);
+    try {
+      $this->guarded('typesafe_smoke_intake', new DecisionInput(['message' => 'Hello there!'], [
+        // The statement itself is abusive; quoting abuse inside a neutral
+        // question is reasonably not flagged.
+        'statement' => new NoulQuestion($this->fixtures->probes()['abusive']),
+      ]));
+      return ['WARN', 'Question text was not flagged by moderation; the decision ran.'];
+    }
+    catch (AiDecisionBlockedException $e) {
+      $http = $this->httpSince($before);
+      if ($e->phase !== AiGuardrailModeEnum::PreGenerate || !str_contains($e->getMessage(), 'TSS-GR-MOD') || $http !== 1) {
+        return $this->result('FAIL', sprintf('Blocked in %s with "%s" after %d HTTP request(s) (expected pre, TSS-GR-MOD, 1)', $e->phase->value, $e->getMessage(), $http));
+      }
+      return ['PASS', 'Abusive question text blocked by moderation; 1 moderation request, no decision request.'];
+    }
   }
 
   /**
