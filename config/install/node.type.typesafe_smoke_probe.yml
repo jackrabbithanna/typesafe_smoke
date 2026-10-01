@@ -6,7 +6,7 @@ dependencies:
       - typesafe_smoke
 name: 'TypeSafe smoke: Contrib probe'
 type: typesafe_smoke_probe
-description: 'Reproduces ai_validations and ai_content_suggestions behaviour with TypeSafe. Validation calls the API; saving is optional.'
+description: 'Reproduces ai_validations and ai_content_suggestions behavior with TypeSafe. Validation calls the API; saving is optional.'
 help: null
 new_revision: false
 preview_mode: 0

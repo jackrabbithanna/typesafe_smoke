@@ -3,7 +3,7 @@
 # Each ticket is saved as a typesafe_smoke_ticket node; the Decision
 # automators then call TypeSafe on save. "expect" holds soft expectations
 # (model judgement; a miss is a warning). "must" holds hard expectations
-# (deterministic behaviour such as guardrail blocks; a miss fails the run).
+# (deterministic behavior such as guardrail blocks; a miss fails the run).
 #
 # Matchers per field: equals, in, includes, excludes, min, max, empty.
 # Booleans store TRUE or FALSE when the automator ran; "empty: true" means

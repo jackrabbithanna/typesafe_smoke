@@ -11,10 +11,10 @@ use Drupal\Core\Form\FormState;
 use Drupal\ai\AiProviderPluginManager;
 
 /**
- * Reproduces known behaviour of contrib modules with TypeSafe.
+ * Reproduces known behavior of contrib modules with TypeSafe.
  *
  * Each probe reports REPRODUCED when the documented problem still occurs,
- * FIXED (a pass) when the fixed behaviour is observed, or WARN when the
+ * FIXED (a pass) when the fixed behavior is observed, or WARN when the
  * result is inconclusive, for example because of a model judgement.
  */
 final class ContribProbe {
