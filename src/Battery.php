@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Drupal\typesafe_smoke;
 
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\ai\AiProviderPluginManager;
 use Drupal\ai\Enum\AiModelCapability;
 use Drupal\ai\Exception\AiBadRequestException;
@@ -25,6 +26,7 @@ use Drupal\ai\OperationType\Decision\Value\ScoreAnswer;
 use Drupal\ai\OperationType\Decision\Value\ScoreQuestion;
 use Drupal\ai\OperationType\Decision\Value\NoulQuestion;
 use Drupal\ai\OperationType\GenericType\ImageFile;
+use Drupal\key\KeyRepositoryInterface;
 
 /**
  * Live checks of the TypeSafe provider through the AI provider proxy.
@@ -58,6 +60,8 @@ final class Battery {
     private readonly CallRecorder $recorder,
     private readonly AiGuardrailHelper $guardrails,
     private readonly FixtureRepository $fixtures,
+    private readonly KeyRepositoryInterface $keyRepository,
+    private readonly ConfigFactoryInterface $configFactory,
   ) {}
 
   /**
@@ -83,6 +87,9 @@ final class Battery {
       'B14' => 'Unknown model ID',
       'B15' => 'Invalid API key',
       'B16' => 'Image file rejected before HTTP (Jev is text-only)',
+      'B17' => 'API key with surrounding whitespace still authenticates',
+      'B18' => 'Malformed API key rejected before HTTP without echoing it',
+      'B19' => 'TypeSafe request ID in the output metadata',
       'G01' => 'Guardrail: card number blocks before HTTP',
       'G02' => 'Guardrail: length limit blocks before HTTP',
       'G03' => 'Guardrail: TypeSafe moderation blocks abusive state',
@@ -155,6 +162,9 @@ final class Battery {
       'B14' => $this->checkB14(),
       'B15' => $this->checkB15(),
       'B16' => $this->checkB16(),
+      'B17' => $this->checkB17(),
+      'B18' => $this->checkB18(),
+      'B19' => $this->checkB19(),
       'G01' => $this->checkG01(),
       'G02' => $this->checkG02(),
       'G03' => $this->checkG03(),
@@ -617,11 +627,66 @@ final class Battery {
       $requests = array_slice($this->recorder->snapshot()['http'], $before);
       $statuses = array_map(static fn ($r) => $r['status'], $requests);
       $short = (new \ReflectionClass($e))->getShortName();
+      if (str_contains($e->getMessage(), 'tss-invalid-key-000000')) {
+        return ['FAIL', "$short echoed the API key."];
+      }
       if ($e instanceof AiSetupFailureException && in_array(401, $statuses, TRUE)) {
-        return ['PASS', "$short after HTTP 401 (" . count($requests) . ' request, no retry)'];
+        // The provider quotes TypeSafe's x-typesafe-request-id in API errors.
+        $request_id = preg_match('/request ID (req_\w+)/', $e->getMessage(), $matches) ? $matches[1] : NULL;
+        return $this->result($request_id !== NULL ? 'PASS' : 'WARN', "$short after HTTP 401 (" . count($requests) . ' request, no retry)' . ($request_id !== NULL ? "; request ID $request_id" : '; no request ID in the message'));
       }
       return $this->result('WARN', "$short after HTTP " . implode(',', $statuses) . ': ' . mb_strimwidth($e->getMessage(), 0, 160, '…'));
     }
+  }
+
+  /**
+   * Check B17: API key with surrounding whitespace still authenticates.
+   */
+  private function checkB17(): array {
+    $key_id = (string) $this->configFactory->get('ai_provider_typesafeai.settings')->get('api_key');
+    $key = trim((string) ($key_id !== '' ? $this->keyRepository->getKey($key_id)?->getKeyValue() : ''));
+    if ($key === '') {
+      return ['SKIP', 'No configured TypeSafe key value to pad.'];
+    }
+    $provider = $this->provider();
+    // Key files and environment values often end with a newline.
+    $provider->setAuthentication("  $key\n");
+    try {
+      $answer = $this->decide(new DecisionInput('Hello there, nice to meet you!', ['q' => new NoulQuestion('Is this a greeting?')]), NULL, $provider)->getNoul('q');
+    }
+    catch (\Throwable $e) {
+      // Providers without key normalization let the HTTP library echo the
+      // Authorization header; never print the key.
+      return ['FAIL', (new \ReflectionClass($e))->getShortName() . ': ' . str_replace($key, '[key]', $e->getMessage())];
+    }
+    return ['PASS', 'accepted after trimming; greeting ' . $this->p($answer->getProbability())];
+  }
+
+  /**
+   * Check B18: Malformed API key rejected before HTTP without echoing it.
+   */
+  private function checkB18(): array {
+    $key = 'tss-secret key-000000';
+    $provider = $this->provider();
+    $provider->setAuthentication($key);
+    [$status, $detail] = $this->expectRejected(fn () => $this->decide(new DecisionInput('Hello', ['q' => new NoulQuestion('Is this a greeting?')]), NULL, $provider), AiSetupFailureException::class);
+    if (str_contains($detail, 'tss-secret')) {
+      return ['FAIL', 'The error echoed the key: ' . str_replace($key, '[key]', $detail)];
+    }
+    return [$status, $detail];
+  }
+
+  /**
+   * Check B19: TypeSafe request ID in the output metadata.
+   */
+  private function checkB19(): array {
+    $output = $this->provider()->decision(new DecisionInput('Help! My payouts have been failing for 3 days.', ['urgent' => new NoulQuestion('Does this convey urgency?')]), $this->model, ['typesafe_smoke']);
+    $request_id = $output->getMetadata()['request_id'] ?? NULL;
+    if (!is_string($request_id) || !preg_match('/^req_\w+$/', $request_id)) {
+      return ['FAIL', 'No TypeSafe request ID in the output metadata: ' . var_export($request_id, TRUE)];
+    }
+    $urgency = $output->getNormalized()->getNoul('urgent')->getProbability();
+    return ['PASS', "request_id $request_id; urgency " . $this->p($urgency)];
   }
 
   /**

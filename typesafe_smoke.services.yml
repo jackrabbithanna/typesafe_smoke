@@ -29,7 +29,7 @@ services:
 
   typesafe_smoke.battery:
     class: Drupal\typesafe_smoke\Battery
-    arguments: ['@ai.provider', '@typesafe_smoke.call_recorder', '@ai.guardrail_helper', '@typesafe_smoke.fixtures']
+    arguments: ['@ai.provider', '@typesafe_smoke.call_recorder', '@ai.guardrail_helper', '@typesafe_smoke.fixtures', '@key.repository', '@config.factory']
   Drupal\typesafe_smoke\Battery: '@typesafe_smoke.battery'
 
   typesafe_smoke.tickets:

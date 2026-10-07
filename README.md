@@ -55,7 +55,7 @@ calls. None of this belongs in `config/sync`.
 | Command | API calls | What it does |
 |---|---|---|
 | `drush tss:status` | 0 | Preflight: provider, key, defaults, recursion risks, config counts, tracked content. |
-| `drush tss:battery` | ~21 | 30 checks through the AI provider proxy: question types, structured fields, multi-question requests, 255/256 options, 10/11 levels, image-file rejection, errors, guardrails, classification, moderation. HTTP requests are counted by middleware. |
+| `drush tss:battery` | ~23 | 33 checks through the AI provider proxy: question types, structured fields, multi-question requests, 255/256 options, 10/11 levels, image-file rejection, errors, API key handling, request IDs, guardrails, classification, moderation. HTTP requests are counted by middleware. |
 | `drush tss:seed` | ~150 | Creates 16 tickets as uid 1; automators call TypeSafe on save. `--dry-run`, `--only=T01,T14`, `--force`. |
 | `drush tss:report` | 0 | Actual vs expected per ticket and field, guardrail blocks, agreement %, latency, tokens. `--only-mismatches`, `--format=json`. |
 | `drush tss:civicrm` | 8 or 14 | Meeting automators through four save paths (Drupal create/update, API4 create/update). API4 automation is skipped when activity hooks are disabled. `--strict`, `--leave-enabled`, `--disable`, `--cleanup`. |
@@ -169,6 +169,30 @@ Expected results:
 - The abusive text in `fixtures/probes.yml` flags harassment.
 
 Expand `categories` in the output to see every probability.
+
+## Provider changes from the TypeSafe SDK changelog review (2026-10-06)
+
+The provider adopted SDK 0.6.0–0.7.2 behavior (plan:
+`docs/typesafe-sdk-changelog-updates.md` in the site root). The battery checks
+it live:
+
+- **B15:** the 401 error message must quote TypeSafe's request ID
+  (`x-typesafe-request-id`) and must not echo the key. A missing request ID is
+  a WARN.
+- **B17:** the configured key padded with spaces and a trailing newline still
+  authenticates (1 call). The key is read from the Key entity and never
+  printed; older providers failed here because Guzzle echoed the header.
+- **B18:** a key with internal whitespace is rejected as
+  `AiSetupFailureException` before HTTP, without echoing it.
+- **B19:** the Decision output metadata carries `request_id` (`req_…`).
+
+Retry changes (the `retry-after-ms` header, subtract-only jitter, the 30 s
+budget) are covered by provider unit tests only: the battery cannot provoke
+429 or 5xx responses. The battery service gained the `key.repository` and
+`config.factory` arguments, so run `drush cr` after updating.
+
+First run: **33 PASS**, 23 HTTP requests. AI's "Error invoking model response"
+log lines now include the request ID for API errors.
 
 ## AI core changes that affect the smoke tests (2026-10-01)
 
