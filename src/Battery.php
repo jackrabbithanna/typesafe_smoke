@@ -294,12 +294,18 @@ final class Battery {
   private function checkC01(): array {
     $provider = $this->provider();
     $declared = $provider->getDecisionCapabilities($this->model);
-    // Jev is text-only: every Decision capability except image files.
-    $expected = array_filter(AiModelCapability::cases(), static fn (AiModelCapability $c): bool => $c->getBaseOperationType() === 'decision' && $c !== AiModelCapability::DecisionImageFiles);
+    // Jev is text-only and answers every question: every Decision capability
+    // except image files and refusals. tryFrom() keeps this working on AI
+    // versions without the refusal capability.
+    $refusals = AiModelCapability::tryFrom('decision_refusals');
+    $expected = array_filter(AiModelCapability::cases(), static fn (AiModelCapability $c): bool => $c->getBaseOperationType() === 'decision' && $c !== AiModelCapability::DecisionImageFiles && $c !== $refusals);
     $missing = array_filter($expected, static fn (AiModelCapability $c): bool => !$declared->has($c));
     $problems = [];
     if ($missing) {
       $problems[] = 'missing ' . implode(', ', array_map(static fn ($c) => $c->value, $missing));
+    }
+    if ($refusals !== NULL && $declared->has($refusals)) {
+      $problems[] = 'refusals declared for a model that answers every question';
     }
     if ($declared->has(AiModelCapability::DecisionImageFiles) || $declared->maxFiles !== NULL) {
       $problems[] = 'image files declared for a text-only model';
