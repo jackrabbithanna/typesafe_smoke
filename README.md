@@ -55,7 +55,7 @@ calls. None of this belongs in `config/sync`.
 | Command | API calls | What it does |
 |---|---|---|
 | `drush tss:status` | 0 | Preflight: provider, key, defaults, recursion risks, config counts, tracked content. |
-| `drush tss:battery` | ~27 | 39 checks through the AI provider proxy: question types, structured fields, multi-question requests, 255/256 options, 10/11 levels, image-file rejection, errors, API key handling, request IDs, guardrails, classification, moderation, images and box questions (I, skipped when the TypeSafe images setting is off), long context (L). HTTP requests are counted by middleware. |
+| `drush tss:battery` | ~36 | 46 checks through the AI provider proxy: question types, structured fields, multi-question requests, 255/256 options, 10/11 levels, image-file rejection, errors, API key handling, request IDs, guardrails, classification, moderation, images and box questions (I, skipped when the TypeSafe images setting is off), long context (L, about 120,000 input tokens for L03). HTTP requests are counted by middleware. |
 | `drush tss:seed` | ~150 | Creates 16 tickets as uid 1; automators call TypeSafe on save. `--dry-run`, `--only=T01,T14`, `--force`. |
 | `drush tss:report` | 0 | Actual vs expected per ticket and field, guardrail blocks, agreement %, latency, tokens. `--only-mismatches`, `--format=json`. |
 | `drush tss:civicrm` | 8 or 14 | Meeting automators through four save paths (Drupal create/update, API4 create/update). API4 automation is skipped when activity hooks are disabled. `--strict`, `--leave-enabled`, `--disable`, `--cleanup`. |
@@ -196,9 +196,36 @@ questions for Jev 1.14 (with an AI release that has them), and the
 - The recorder notes each request's `TypeSafe-Danger-Zone-*` headers and
   whether it was multipart. `tss:status` shows the images setting.
 
-First run with images on: **39 PASS**, 27 HTTP requests. The box for the red
-rectangle came back as (156,100)–(300,296) px on `jev-1.14.0`, confidence 0.90.
-A 600 × 400 PNG costs about 700 input tokens.
+Added the same day, to check the provider's assumptions against the live API:
+
+- **G07:** the intake guardrail set (Moderation last) stops a request with an
+  image before HTTP, the documented limitation. It fails once core changes it.
+- **I06:** a 280 × 280 PNG and a 1568 × 1568 JPEG (the documented limits) are
+  accepted, and so is a progressive JPEG (a WARN if TypeSafe ever rejects it).
+- **I07:** an object state keeps `ticket.ordered_color` next to `images[0]`,
+  and a list state is reachable as `items`.
+- **I08:** two images with the rectangle in different places; each box
+  question must box the image it names.
+- **I09:** an absent target: the presence noul must be low.
+- **L02:** about 117,000 tokens of state without `long_context` gets one HTTP
+  400 and `AiBadRequestException` with the `long_context` hint.
+- **L03:** the same state with `long_context` is answered, and the one refund
+  line among 3,600 is found.
+
+First run: **46 PASS**, 36 HTTP requests. Findings:
+- TypeSafe's context overflow error is `{"detail": {"error_type":
+  "max_tokens_exceeded"}}` with no message. The provider used to print it as
+  JSON, which also garbled AI's error log (Drupal's logger reads braces as
+  placeholders). It now prints `max_tokens_exceeded.` and the hint.
+- Image tokens are roughly one per 350 to 400 pixels: 280² ≈ 240, 600 × 400 ≈
+  700, 1568² ≈ 6,300.
+- For an absent red rectangle, the box landed on a blue one with confidence
+  0.81, so confidence is no presence signal.
+- Long context answered 116,815 tokens in 1.4 s.
+
+Before these additions, the first run with images on gave **39 PASS** and 27
+HTTP requests. The box for the red rectangle came back as (156,100)–(300,296)
+px on `jev-1.14.0`, confidence 0.90.
 
 ## Provider changes from the TypeSafe SDK changelog review (2026-10-06)
 

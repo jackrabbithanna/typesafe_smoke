@@ -21,6 +21,7 @@ use Drupal\ai\OperationType\Decision\DecisionInput;
 use Drupal\ai\OperationType\Decision\DecisionResponse;
 use Drupal\ai\OperationType\Decision\Value\ChoiceQuestion;
 use Drupal\ai\OperationType\Decision\Value\AnswerValidation;
+use Drupal\ai\OperationType\Decision\Value\BoxAnswer;
 use Drupal\ai\OperationType\Decision\Value\ChoiceAnswer;
 use Drupal\ai\OperationType\Decision\Value\ScoreAnswer;
 use Drupal\ai\OperationType\Decision\Value\ScoreQuestion;
@@ -96,6 +97,7 @@ final class Battery {
       'G04' => 'Guardrail: post-phase block on answer text after the call',
       'G05' => 'Guardrail: unsupported plugin is a setup failure',
       'G06' => 'Guardrail: TypeSafe moderation covers question text',
+      'G07' => 'Guardrail: moderation stops a request with images before HTTP',
       'T01' => 'Text classification with labels',
       'T02' => 'Text classification without labels rejected before HTTP',
       'T03' => 'Text classification with custom instructions',
@@ -107,7 +109,13 @@ final class Battery {
       'I03' => 'Images: file order kept (red PNG, then blue JPEG)',
       'I04' => 'Box: red rectangle located on jev-preview',
       'I05' => 'Box: rejected before HTTP on jev-latest',
+      'I06' => 'Images: smallest and largest accepted sizes, and a progressive JPEG',
+      'I07' => 'Images: object and list states keep their paths next to images',
+      'I08' => 'Box: each question searches the image it names',
+      'I09' => 'Box: absent target, with a presence noul',
       'L01' => 'Long context header on a small request',
+      'L02' => 'Long state without long context: rejected with the long_context hint',
+      'L03' => 'Long state with long context: answered',
     ];
   }
 
@@ -177,6 +185,7 @@ final class Battery {
       'G04' => $this->checkG04(),
       'G05' => $this->checkG05(),
       'G06' => $this->checkG06(),
+      'G07' => $this->checkG07(),
       'T01' => $this->checkT01(),
       'T02' => $this->checkT02(),
       'T03' => $this->checkT03(),
@@ -188,7 +197,13 @@ final class Battery {
       'I03' => $this->checkI03(),
       'I04' => $this->checkI04(),
       'I05' => $this->checkI05(),
+      'I06' => $this->checkI06(),
+      'I07' => $this->checkI07(),
+      'I08' => $this->checkI08(),
+      'I09' => $this->checkI09(),
       'L01' => $this->checkL01(),
+      'L02' => $this->checkL02(),
+      'L03' => $this->checkL03(),
     };
   }
 
@@ -992,15 +1007,28 @@ final class Battery {
    *   The height in pixels.
    * @param int[]|null $rectangle
    *   The rectangle's left, top, right and bottom pixel edges (right and
-   *   bottom exclusive), filled red, or NULL for none.
+   *   bottom exclusive), or NULL for none.
+   * @param int[] $color
+   *   The rectangle color as red, green and blue.
+   * @param bool $progressive
+   *   Whether to save a JPEG as progressive instead of baseline.
    */
-  private function image(string $format, array $background, int $width = 300, int $height = 300, ?array $rectangle = NULL): ImageFile {
+  private function image(
+    string $format,
+    array $background,
+    int $width = 300,
+    int $height = 300,
+    ?array $rectangle = NULL,
+    array $color = [220, 20, 20],
+    bool $progressive = FALSE,
+  ): ImageFile {
     $image = imagecreatetruecolor($width, $height);
     imagefill($image, 0, 0, (int) imagecolorallocate($image, ...$background));
     if ($rectangle !== NULL) {
       [$left, $top, $right, $bottom] = $rectangle;
-      imagefilledrectangle($image, $left, $top, $right - 1, $bottom - 1, (int) imagecolorallocate($image, 220, 20, 20));
+      imagefilledrectangle($image, $left, $top, $right - 1, $bottom - 1, (int) imagecolorallocate($image, ...$color));
     }
+    imageinterlace($image, $progressive);
     ob_start();
     if ($format === 'png') {
       imagepng($image);
@@ -1152,6 +1180,226 @@ final class Battery {
       return ['FAIL', sprintf('%d HTTP request(s); %s', $this->http(), $request)];
     }
     return ['PASS', 'greeting P=' . $this->p($answer->getProbability()) . "; $request"];
+  }
+
+  /**
+   * Gets the input tokens of the current check's calls.
+   */
+  private function tokensIn(): int {
+    $calls = array_filter($this->recorder->snapshot()['calls'], fn (array $call): bool => $call['segment'] === $this->current);
+    return array_sum(array_map(static fn (array $call): int => (int) $call['tokens_in'], $calls));
+  }
+
+  /**
+   * Gets the largest edge difference between a box and the expected edges.
+   */
+  private function boxError(BoxAnswer $box, array $expected): float {
+    return max(array_map(static fn (string $edge): float => abs($box->getBox()[$edge] - $expected[$edge]), array_keys($expected)));
+  }
+
+  /**
+   * Formats a box's edges.
+   */
+  private function edges(BoxAnswer $box): string {
+    return sprintf('top %s, bottom %s, left %s, right %s', $this->p($box->getTop()), $this->p($box->getBottom()), $this->p($box->getLeft()), $this->p($box->getRight()));
+  }
+
+  /**
+   * Check G07: Guardrail: moderation stops a request with images before HTTP.
+   *
+   * Moderation is text-only, so AI stops any Decision request with files.
+   * This pins the documented limitation; it fails once core changes it.
+   */
+  private function checkG07(): array {
+    if ($skip = $this->imageSkip()) {
+      return $skip;
+    }
+    $question = new NoulQuestion('Is `images[0]` a photo of a shoe?');
+    $input = new DecisionInput('A product photo.', ['shoe' => $question], [$this->image('png', [255, 255, 255])]);
+    return $this->expectBlocked(fn () => $this->guarded('typesafe_smoke_intake', $input), 'cannot be moderated', AiGuardrailModeEnum::PreGenerate, 0);
+  }
+
+  /**
+   * Check I06: Images: smallest and largest sizes, and a progressive JPEG.
+   *
+   * The provider checks TypeSafe's documented limits locally; the API must
+   * accept images right at them. TypeSafe only recommends baseline JPEGs, so
+   * a rejected progressive JPEG is a warning that the local checks miss it.
+   */
+  private function checkI06(): array {
+    if ($skip = $this->imageSkip()) {
+      return $skip;
+    }
+    $questions = ['solid' => new NoulQuestion('Is `images[0]` a single solid color?')];
+    $images = [
+      '280 × 280 PNG' => [$this->image('png', [40, 160, 40], 280, 280), FALSE],
+      '1568 × 1568 JPEG' => [$this->image('jpeg', [40, 160, 40], 1568, 1568), FALSE],
+      'progressive 600 × 400 JPEG' => [$this->image('jpeg', [40, 160, 40], 600, 400, NULL, [220, 20, 20], TRUE), TRUE],
+    ];
+    $status = 'PASS';
+    $details = [];
+    foreach ($images as $name => [$image, $soft]) {
+      $before = $this->tokensIn();
+      try {
+        $p = $this->decide(new DecisionInput('A test image.', $questions, [$image]))->getNoul('solid')->getProbability();
+        $details[] = sprintf('%s accepted (%d input tokens, solid P=%s)', $name, $this->tokensIn() - $before, $this->p($p));
+      }
+      catch (AiBadRequestException $e) {
+        if (!$soft) {
+          return ['FAIL', "$name rejected: " . mb_strimwidth($e->getMessage(), 0, 240, '…')];
+        }
+        $status = 'WARN';
+        $details[] = "$name rejected: " . mb_strimwidth($e->getMessage(), 0, 240, '…');
+      }
+    }
+    if ($this->http() !== 3) {
+      return ['FAIL', $this->http() . ' HTTP requests; expected 3. ' . implode('; ', $details)];
+    }
+    return [$status, implode('; ', $details)];
+  }
+
+  /**
+   * Check I07: Images: object and list states keep their paths next to images.
+   */
+  private function checkI07(): array {
+    if ($skip = $this->imageSkip()) {
+      return $skip;
+    }
+    $red = $this->image('png', [220, 20, 20]);
+    // An object state gains "images"; its own paths still work.
+    $ticket = ['subject' => 'Wrong color delivered', 'ordered_color' => 'blue'];
+    $object = $this->decide(new DecisionInput(['ticket' => $ticket], [
+      'matches' => new NoulQuestion('Is the product in `images[0]` the color given in `ticket.ordered_color`?'),
+    ], [$red]))->getNoul('matches')->getProbability();
+    // A list state is sent as "items".
+    $list = $this->decide(new DecisionInput(['A blue mug', 'A red mug'], [
+      'which' => new ChoiceQuestion('Which entry in `items` describes the color of `images[0]`?', [
+        'first' => 'The first entry in `items`.',
+        'second' => 'The second entry in `items`.',
+      ]),
+    ], [$red]))->getChoice('which');
+    if ($this->http() !== 2) {
+      return ['FAIL', $this->http() . ' HTTP requests; expected 2'];
+    }
+    $ok = $object < 0.5 && $list->getChoice() === 'second';
+    return $this->result($ok ? 'PASS' : 'WARN', sprintf('object state: red image matches ordered blue P=%s (expected < 0.5); list state: %s (%s; expected second)', $this->p($object), $list->getChoice(), $this->p($list->getConfidence())));
+  }
+
+  /**
+   * Check I08: Box: each question searches the image it names.
+   */
+  private function checkI08(): array {
+    if ($skip = $this->imageSkip(TRUE)) {
+      return $skip;
+    }
+    // The red rectangles sit in different places in the two images.
+    $images = [
+      $this->image('png', [255, 255, 255], 600, 400, [60, 80, 180, 240]),
+      $this->image('png', [255, 255, 255], 600, 400, [400, 160, 560, 320]),
+    ];
+    $expected = [
+      'first' => ['top' => 0.2, 'bottom' => 0.6, 'left' => 0.1, 'right' => 0.3],
+      'second' => ['top' => 0.4, 'bottom' => 0.8, 'left' => 400 / 600, 'right' => 560 / 600],
+    ];
+    $response = $this->decide(new DecisionInput('Two test images.', [
+      'first' => ['type' => 'box', 'instructions' => 'the red rectangle in `images[0]`'],
+      'second' => ['type' => 'box', 'instructions' => 'the red rectangle in `images[1]`'],
+    ], $images), 'jev-preview');
+    $details = [];
+    $ok = TRUE;
+    foreach (['first' => 'second', 'second' => 'first'] as $id => $other) {
+      $box = $response->getBox($id);
+      $error = $this->boxError($box, $expected[$id]);
+      $ok = $ok && $error <= 0.05;
+      $swapped = $error > 0.05 && $this->boxError($box, $expected[$other]) <= 0.05 ? ' (boxed the other image)' : '';
+      $details[] = sprintf('%s: %s, off by %s%s, confidence %s', $id, $this->edges($box), $this->p($error), $swapped, $this->p($box->getConfidence()));
+    }
+    return $this->result($ok ? 'PASS' : 'WARN', 'model ' . $response->getModel() . '; ' . implode('; ', $details));
+  }
+
+  /**
+   * Check I09: Box: absent target, with a presence noul.
+   *
+   * A box is always returned, so the presence noul is what tells callers to
+   * ignore it. The image has a blue rectangle where the red one would be.
+   */
+  private function checkI09(): array {
+    if ($skip = $this->imageSkip(TRUE)) {
+      return $skip;
+    }
+    $response = $this->decide(new DecisionInput('A test image.', [
+      'present' => new NoulQuestion('Is there a red rectangle in `images[0]`?'),
+      'where' => ['type' => 'box', 'instructions' => 'the red rectangle in `images[0]`'],
+    ], [$this->image('png', [255, 255, 255], 600, 400, [150, 100, 300, 300], [20, 40, 220])]), 'jev-preview');
+    $present = $response->getNoul('present')->getProbability();
+    $box = $response->getBox('where');
+    $on_blue = $this->boxError($box, ['top' => 0.25, 'bottom' => 0.75, 'left' => 0.25, 'right' => 0.5]) <= 0.05;
+    return $this->result($present < 0.5 ? 'PASS' : 'WARN', sprintf('present P=%s (expected < 0.5); box %s%s, confidence %s', $this->p($present), $this->edges($box), $on_blue ? ' (on the blue rectangle)' : '', $this->p($box->getConfidence())));
+  }
+
+  /**
+   * Builds a Decision input longer than the default 64k-token context.
+   *
+   * About 3,600 log lines (roughly 380,000 characters) with one refund
+   * request far from both ends.
+   */
+  private function longLog(): DecisionInput {
+    $cities = ['Lisbon', 'Osaka', 'Denver', 'Nairobi', 'Oslo', 'Lima', 'Perth', 'Cairo'];
+    $lines = [];
+    for ($i = 1; $i <= 3600; $i++) {
+      $lines[] = sprintf('Line %d: Order %d shipped from the %s warehouse on day %d and is expected within %d business days.', $i, 10000 + $i, $cities[$i % 8], $i % 28 + 1, $i % 5 + 2);
+    }
+    $lines[2718] = 'Line 2719: The customer asked for a refund of order 12719 because the box arrived damaged.';
+    return new DecisionInput(['log' => implode("\n", $lines)], [
+      'refund' => new NoulQuestion('Does any line in `log` describe a customer asking for a refund?'),
+    ]);
+  }
+
+  /**
+   * Check L02: Long state without long context: rejected with the hint.
+   *
+   * This checks the provider's max_tokens_exceeded detection against the
+   * API's real error.
+   */
+  private function checkL02(): array {
+    $before = count($this->recorder->snapshot()['http']);
+    try {
+      $this->decide($this->longLog());
+      $tokens = number_format($this->tokensIn());
+      return ['WARN', "Accepted without long context ($tokens input tokens); TypeSafe may have raised the limit."];
+    }
+    catch (AiBadRequestException $e) {
+      $requests = array_slice($this->recorder->snapshot()['http'], $before);
+      $statuses = implode(',', array_map(static fn (array $request): string => (string) $request['status'], $requests));
+      $message = mb_strimwidth($e->getMessage(), 0, 320, '…');
+      if (count($requests) !== 1 || $requests[0]['status'] !== 400) {
+        return ['FAIL', "Expected one HTTP 400, got $statuses: $message"];
+      }
+      if (!str_contains($e->getMessage(), 'long_context')) {
+        $problem = "Rejected without the long_context hint, so the provider's detection does not match the API";
+        return ['FAIL', "$problem: $message"];
+      }
+      return ['PASS', "AiBadRequestException after one HTTP 400: $message"];
+    }
+  }
+
+  /**
+   * Check L03: Long state with long context: answered.
+   */
+  private function checkL03(): array {
+    $provider = $this->provider();
+    $provider->setConfiguration(['long_context' => TRUE]);
+    $p = $this->decide($this->longLog(), NULL, $provider)->getNoul('refund')->getProbability();
+    $request = $this->lastRequest();
+    $tokens = $this->tokensIn();
+    if ($this->http() !== 1 || !str_contains($request, 'TypeSafe-Danger-Zone-Long-Context')) {
+      return ['FAIL', sprintf('%d HTTP request(s); %s', $this->http(), $request)];
+    }
+    if ($tokens <= 64000) {
+      $detail = sprintf('Only %s input tokens, within the default context', number_format($tokens));
+      return ['WARN', "$detail, so this does not test long context; refund P=" . $this->p($p)];
+    }
+    return $this->result($p > 0.5 ? 'PASS' : 'WARN', sprintf('%s input tokens; refund line found P=%s; %s', number_format($tokens), $this->p($p), $request));
   }
 
 }
