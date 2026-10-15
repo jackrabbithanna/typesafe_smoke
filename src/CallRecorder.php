@@ -342,6 +342,9 @@ final class CallRecorder implements EventSubscriberInterface, LoggerInterface {
       'status' => $status,
       'ms' => $ms,
       'error' => $error,
+      // Experimental TypeSafe features are turned on per request by headers.
+      'danger_zone' => array_values(array_filter(array_keys($request->getHeaders()), static fn (string $name): bool => stripos($name, 'TypeSafe-Danger-Zone-') === 0)),
+      'multipart' => str_starts_with($request->getHeaderLine('Content-Type'), 'multipart/form-data'),
     ];
   }
 

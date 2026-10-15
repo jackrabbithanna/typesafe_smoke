@@ -86,7 +86,7 @@ final class Battery {
       'B13' => 'Request without questions rejected before HTTP',
       'B14' => 'Unknown model ID',
       'B15' => 'Invalid API key',
-      'B16' => 'Image file rejected before HTTP (Jev is text-only)',
+      'B16' => 'Unsupported image file rejected before HTTP',
       'B17' => 'API key with surrounding whitespace still authenticates',
       'B18' => 'Malformed API key rejected before HTTP without echoing it',
       'B19' => 'TypeSafe request ID in the output metadata',
@@ -102,6 +102,12 @@ final class Battery {
       'T04' => 'Text classification removes duplicate and blank labels',
       'M01' => 'Moderation, benign text',
       'M02' => 'Moderation, abusive text',
+      'I01' => 'Images: GIF and 1x1 PNG rejected before HTTP',
+      'I02' => 'Images: noul about a red rectangle (multipart, images header)',
+      'I03' => 'Images: file order kept (red PNG, then blue JPEG)',
+      'I04' => 'Box: red rectangle located on jev-preview',
+      'I05' => 'Box: rejected before HTTP on jev-latest',
+      'L01' => 'Long context header on a small request',
     ];
   }
 
@@ -177,6 +183,12 @@ final class Battery {
       'T04' => $this->checkT04(),
       'M01' => $this->checkM01(),
       'M02' => $this->checkM02(),
+      'I01' => $this->checkI01(),
+      'I02' => $this->checkI02(),
+      'I03' => $this->checkI03(),
+      'I04' => $this->checkI04(),
+      'I05' => $this->checkI05(),
+      'L01' => $this->checkL01(),
     };
   }
 
@@ -304,21 +316,26 @@ final class Battery {
   private function checkC01(): array {
     $provider = $this->provider();
     $declared = $provider->getDecisionCapabilities($this->model);
-    // Jev is text-only and answers every question: every Decision capability
-    // except image files and refusals. tryFrom() keeps this working on AI
-    // versions without the refusal capability.
+    // Jev answers every question: every Decision capability except refusals.
+    // Image files follow the images setting, and box questions also need Jev
+    // 1.14 and an AI release that has them. tryFrom() keeps this working on AI
+    // versions without the refusal or box capabilities.
     $refusals = AiModelCapability::tryFrom('decision_refusals');
-    $expected = array_filter(AiModelCapability::cases(), static fn (AiModelCapability $c): bool => $c->getBaseOperationType() === 'decision' && $c !== AiModelCapability::DecisionImageFiles && $c !== $refusals);
+    $box = AiModelCapability::tryFrom('decision_box');
+    $images = $this->imagesEnabled();
+    $with_box = $this->expectsBox($this->model);
+    $expected = array_filter(AiModelCapability::cases(), static fn (AiModelCapability $c): bool => $c->getBaseOperationType() === 'decision' && $c !== $refusals && ($images || $c !== AiModelCapability::DecisionImageFiles) && ($with_box || $c !== $box));
     $missing = array_filter($expected, static fn (AiModelCapability $c): bool => !$declared->has($c));
+    $unexpected = array_filter($declared->getCapabilities(), static fn (AiModelCapability $c): bool => !in_array($c, $expected, TRUE));
     $problems = [];
     if ($missing) {
       $problems[] = 'missing ' . implode(', ', array_map(static fn ($c) => $c->value, $missing));
     }
-    if ($refusals !== NULL && $declared->has($refusals)) {
-      $problems[] = 'refusals declared for a model that answers every question';
+    if ($unexpected) {
+      $problems[] = 'unexpectedly declared ' . implode(', ', array_map(static fn ($c) => $c->value, $unexpected));
     }
-    if ($declared->has(AiModelCapability::DecisionImageFiles) || $declared->maxFiles !== NULL) {
-      $problems[] = 'image files declared for a text-only model';
+    if ($declared->maxFiles !== NULL) {
+      $problems[] = 'a file limit is declared; TypeSafe documents none';
     }
     if ($declared->maxChoiceOptions !== 255 || $declared->maxScoreLevels !== 10 || $declared->maxQuestions !== NULL) {
       $problems[] = sprintf('limits %s/%s/%s, expected 255/10/null', var_export($declared->maxChoiceOptions, TRUE), var_export($declared->maxScoreLevels, TRUE), var_export($declared->maxQuestions, TRUE));
@@ -338,7 +355,7 @@ final class Battery {
     if ($problems) {
       return $this->result('FAIL', implode('; ', $problems));
     }
-    return $this->result('PASS', count($expected) . ' Decision capabilities declared, no image files; limits 255 options / 10 levels / no question limit; no HTTP.');
+    return $this->result('PASS', sprintf('%d Decision capabilities declared; images %s, box %s; limits 255 options / 10 levels / no question limit; no HTTP.', count($expected), $images ? 'on' : 'off', $with_box ? 'yes' : 'no'));
   }
 
   /**
@@ -604,12 +621,14 @@ final class Battery {
   }
 
   /**
-   * Check B16: Image file rejected before HTTP (Jev is text-only).
+   * Check B16: Unsupported image file rejected before HTTP.
    */
   private function checkB16(): array {
-    // A 1x1 PNG: Jev declares no image support, so no request is sent.
+    // A 1x1 PNG: with images off Jev declares no image support, and with
+    // images on the image is below TypeSafe's minimum size. Either way no
+    // request is sent.
     $photo = new ImageFile((string) base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', TRUE), 'image/png', 'listing.png');
-    return $this->expectRejected(fn () => $this->decide(new DecisionInput(['listing' => ['color' => 'red']], ['color_matches' => new NoulQuestion('The product in the photo matches `listing.color`.')], [$photo])), AiMissingFeatureException::class);
+    return $this->expectRejected(fn () => $this->decide(new DecisionInput(['listing' => ['color' => 'red']], ['color_matches' => new NoulQuestion('The product in `images[0]` matches `listing.color`.')], [$photo])), $this->imagesEnabled() ? AiBadRequestException::class : AiMissingFeatureException::class);
   }
 
   /**
@@ -925,6 +944,214 @@ final class Battery {
     }
     $hits = array_keys(array_filter($info['categories'], static fn ($c) => !empty($c['flagged'])));
     return $this->result($flagged ? 'PASS' : 'WARN', sprintf('flagged=%s; categories over threshold: %s', $flagged ? 'yes' : 'no', $hits ? implode(', ', $hits) : 'none'));
+  }
+
+  /**
+   * Whether the TypeSafe images setting is on.
+   */
+  private function imagesEnabled(): bool {
+    return (bool) $this->configFactory->get('ai_provider_typesafeai.settings')->get('images_enabled');
+  }
+
+  /**
+   * Whether a model should declare box questions.
+   *
+   * Mirrors the provider: images on, an AI release with box questions, and
+   * jev-preview or Jev 1.14.0 and later.
+   */
+  private function expectsBox(string $model): bool {
+    if (!$this->imagesEnabled() || AiModelCapability::tryFrom('decision_box') === NULL) {
+      return FALSE;
+    }
+    return $model === 'jev-preview' || (preg_match('/^jev-(\d+\.\d+\.\d+)$/D', $model, $matches) === 1 && version_compare($matches[1], '1.14.0', '>='));
+  }
+
+  /**
+   * Returns a SKIP result when images are off or box questions are missing.
+   */
+  private function imageSkip(bool $box = FALSE): ?array {
+    if (!$this->imagesEnabled()) {
+      return ['SKIP', 'TypeSafe images are off (ai_provider_typesafeai.settings:images_enabled).'];
+    }
+    if ($box && AiModelCapability::tryFrom('decision_box') === NULL) {
+      return ['SKIP', 'This AI release has no Decision box questions.'];
+    }
+    return NULL;
+  }
+
+  /**
+   * Builds an image with GD: a solid background and an optional rectangle.
+   *
+   * @param string $format
+   *   The format: "png" or "jpeg".
+   * @param int[] $background
+   *   The background color as red, green and blue.
+   * @param int $width
+   *   The width in pixels.
+   * @param int $height
+   *   The height in pixels.
+   * @param int[]|null $rectangle
+   *   The rectangle's left, top, right and bottom pixel edges (right and
+   *   bottom exclusive), filled red, or NULL for none.
+   */
+  private function image(string $format, array $background, int $width = 300, int $height = 300, ?array $rectangle = NULL): ImageFile {
+    $image = imagecreatetruecolor($width, $height);
+    imagefill($image, 0, 0, (int) imagecolorallocate($image, ...$background));
+    if ($rectangle !== NULL) {
+      [$left, $top, $right, $bottom] = $rectangle;
+      imagefilledrectangle($image, $left, $top, $right - 1, $bottom - 1, (int) imagecolorallocate($image, 220, 20, 20));
+    }
+    ob_start();
+    if ($format === 'png') {
+      imagepng($image);
+    }
+    else {
+      imagejpeg($image, NULL, 90);
+    }
+    return new ImageFile((string) ob_get_clean(), 'image/' . $format, "smoke.$format");
+  }
+
+  /**
+   * A 600 × 400 white PNG with a red rectangle at x 150–300, y 100–300.
+   */
+  private function redRectangle(): ImageFile {
+    return $this->image('png', [255, 255, 255], 600, 400, [150, 100, 300, 300]);
+  }
+
+  /**
+   * Describes the last HTTP request of the current check.
+   */
+  private function lastRequest(): string {
+    $requests = $this->recorder->snapshot($this->current)['http'];
+    $request = end($requests);
+    if (!is_array($request)) {
+      return 'no request';
+    }
+    return ($request['multipart'] ?? FALSE ? 'multipart' : 'JSON') . '; headers: ' . (($request['danger_zone'] ?? []) ? implode(', ', $request['danger_zone']) : 'none');
+  }
+
+  /**
+   * Check I01: Images: GIF and 1x1 PNG rejected before HTTP.
+   */
+  private function checkI01(): array {
+    if ($skip = $this->imageSkip()) {
+      return $skip;
+    }
+    $details = [];
+    $gd = imagecreatetruecolor(300, 300);
+    ob_start();
+    imagegif($gd);
+    $images = [
+      'GIF' => new ImageFile((string) ob_get_clean(), 'image/gif', 'smoke.gif'),
+      '1x1 PNG' => $this->image('png', [255, 255, 255], 1, 1),
+    ];
+    foreach ($images as $name => $image) {
+      [$status, $detail] = $this->expectRejected(fn () => $this->decide(new DecisionInput('A product photo.', ['q' => new NoulQuestion('Is `images[0]` a photo of a shoe?')], [$image])), AiBadRequestException::class);
+      if ($status !== 'PASS') {
+        return [$status, "$name: $detail"];
+      }
+      $details[] = "$name: " . mb_strimwidth($detail, 0, 140, '…');
+    }
+    return ['PASS', implode(' | ', $details)];
+  }
+
+  /**
+   * Check I02: Images: noul about a red rectangle (multipart, images header).
+   */
+  private function checkI02(): array {
+    if ($skip = $this->imageSkip()) {
+      return $skip;
+    }
+    $response = $this->decide(new DecisionInput('A test image.', ['red' => new NoulQuestion('Is there a red rectangle in `images[0]`?')], [$this->redRectangle()]));
+    $request = $this->lastRequest();
+    if ($this->http() !== 1 || !str_starts_with($request, 'multipart') || !str_contains($request, 'TypeSafe-Danger-Zone-Images')) {
+      return ['FAIL', sprintf('%d HTTP request(s); %s', $this->http(), $request)];
+    }
+    $p = $response->getNoul('red')->getProbability();
+    return $this->result($p > 0.5 ? 'PASS' : 'WARN', sprintf('model %s; red rectangle P=%s; %s', $response->getModel(), $this->p($p), $request));
+  }
+
+  /**
+   * Check I03: Images: file order kept (red PNG, then blue JPEG).
+   */
+  private function checkI03(): array {
+    if ($skip = $this->imageSkip()) {
+      return $skip;
+    }
+    $colors = ['red' => 'Mostly red.', 'blue' => 'Mostly blue.', 'green' => 'Mostly green.'];
+    $response = $this->decide(new DecisionInput('Two test images.', [
+      'first' => new ChoiceQuestion('What color fills `images[0]`?', $colors),
+      'second' => new ChoiceQuestion('What color fills `images[1]`?', $colors),
+    ], [$this->image('png', [220, 20, 20]), $this->image('jpeg', [20, 40, 220])]));
+    if ($this->http() !== 1) {
+      return ['FAIL', $this->http() . ' HTTP requests; expected 1'];
+    }
+    $first = $response->getChoice('first')->getChoice();
+    $second = $response->getChoice('second')->getChoice();
+    return $this->result($first === 'red' && $second === 'blue' ? 'PASS' : 'WARN', sprintf('images[0] %s (%s), images[1] %s (%s); %s', $first, $this->p($response->getChoice('first')->getConfidence()), $second, $this->p($response->getChoice('second')->getConfidence()), $this->lastRequest()));
+  }
+
+  /**
+   * Check I04: Box: red rectangle located on jev-preview.
+   */
+  private function checkI04(): array {
+    if ($skip = $this->imageSkip(TRUE)) {
+      return $skip;
+    }
+    $response = $this->decide(new DecisionInput('A test image.', [
+      'present' => ['type' => 'noul', 'instructions' => 'Is there a red rectangle in `images[0]`?'],
+      'where' => ['type' => 'box', 'instructions' => 'the red rectangle in `images[0]`'],
+    ], [$this->redRectangle()]), 'jev-preview');
+    $box = $response->getBox('where');
+    $expected = ['top' => 0.25, 'bottom' => 0.75, 'left' => 0.25, 'right' => 0.5];
+    $errors = array_map(static fn (string $edge): float => abs($box->getBox()[$edge] - $expected[$edge]), array_keys($expected));
+    $pixels = $box->toPixels(600, 400);
+    $detail = sprintf('model %s; present P=%s; box top %s, bottom %s, left %s, right %s = (%d,%d)-(%d,%d) px of 600 × 400, expected (150,100)-(300,300); confidence %s; %s',
+      $response->getModel(),
+      $this->p($response->getNoul('present')->getProbability()),
+      $this->p($box->getTop()),
+      $this->p($box->getBottom()),
+      $this->p($box->getLeft()),
+      $this->p($box->getRight()),
+      $pixels['left'],
+      $pixels['top'],
+      $pixels['right'],
+      $pixels['bottom'],
+      $this->p($box->getConfidence()),
+      $this->lastRequest(),
+    );
+    return $this->result(max($errors) <= 0.05 ? 'PASS' : 'WARN', $detail);
+  }
+
+  /**
+   * Check I05: Box: rejected before HTTP on jev-latest.
+   */
+  private function checkI05(): array {
+    if ($skip = $this->imageSkip(TRUE)) {
+      return $skip;
+    }
+    // Update this check once jev-latest points to Jev 1.14 and declares box.
+    [$status, $detail] = $this->expectRejected(fn () => $this->decide(new DecisionInput('A test image.', [
+      'where' => ['type' => 'box', 'instructions' => 'the red rectangle in `images[0]`'],
+    ], [$this->redRectangle()]), 'jev-latest'), AiMissingFeatureException::class);
+    if ($status === 'PASS' && !str_contains($detail, 'decision_box')) {
+      return ['FAIL', 'Rejected for another feature: ' . $detail];
+    }
+    return [$status, $detail];
+  }
+
+  /**
+   * Check L01: Long context header on a small request.
+   */
+  private function checkL01(): array {
+    $provider = $this->provider();
+    $provider->setConfiguration(['long_context' => TRUE]);
+    $answer = $this->decide(new DecisionInput('Hello there, nice to meet you!', ['q' => new NoulQuestion('Is this a greeting?')]), NULL, $provider)->getNoul('q');
+    $request = $this->lastRequest();
+    if ($this->http() !== 1 || !str_contains($request, 'TypeSafe-Danger-Zone-Long-Context')) {
+      return ['FAIL', sprintf('%d HTTP request(s); %s', $this->http(), $request)];
+    }
+    return ['PASS', 'greeting P=' . $this->p($answer->getProbability()) . "; $request"];
   }
 
 }

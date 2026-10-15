@@ -317,6 +317,9 @@ final class TypeSafeSmokeCommands extends DrushCommands {
       $add("typesafeai usable for $operation", $usable === $expected ? 'PASS' : 'FAIL', $usable ? 'usable' : 'not usable');
     }
 
+    $images = (bool) $this->configFactory->get('ai_provider_typesafeai.settings')->get('images_enabled');
+    $add('TypeSafe images setting', 'PASS', $images ? 'On: the image (I) and box checks run.' : 'Off: the image (I) and box checks are skipped; B16 expects the missing-feature error.');
+
     $key_id = (string) $this->configFactory->get('ai_provider_typesafeai.settings')->get('api_key');
     $key = $key_id !== '' ? $this->keys->getKey($key_id) : NULL;
     $length = $key ? strlen((string) $key->getKeyValue()) : 0;

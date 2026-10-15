@@ -55,7 +55,7 @@ calls. None of this belongs in `config/sync`.
 | Command | API calls | What it does |
 |---|---|---|
 | `drush tss:status` | 0 | Preflight: provider, key, defaults, recursion risks, config counts, tracked content. |
-| `drush tss:battery` | ~23 | 33 checks through the AI provider proxy: question types, structured fields, multi-question requests, 255/256 options, 10/11 levels, image-file rejection, errors, API key handling, request IDs, guardrails, classification, moderation. HTTP requests are counted by middleware. |
+| `drush tss:battery` | ~27 | 39 checks through the AI provider proxy: question types, structured fields, multi-question requests, 255/256 options, 10/11 levels, image-file rejection, errors, API key handling, request IDs, guardrails, classification, moderation, images and box questions (I, skipped when the TypeSafe images setting is off), long context (L). HTTP requests are counted by middleware. |
 | `drush tss:seed` | ~150 | Creates 16 tickets as uid 1; automators call TypeSafe on save. `--dry-run`, `--only=T01,T14`, `--force`. |
 | `drush tss:report` | 0 | Actual vs expected per ticket and field, guardrail blocks, agreement %, latency, tokens. `--only-mismatches`, `--format=json`. |
 | `drush tss:civicrm` | 8 or 14 | Meeting automators through four save paths (Drupal create/update, API4 create/update). API4 automation is skipped when activity hooks are disabled. `--strict`, `--leave-enabled`, `--disable`, `--cleanup`. |
@@ -170,6 +170,36 @@ Expected results:
 
 Expand `categories` in the output to see every probability.
 
+## Jev 1.14: images, box questions and long context (2026-10-15)
+
+The provider gained an experimental images setting
+(`ai_provider_typesafeai.settings:images_enabled`, off by default), box
+questions for Jev 1.14 (with an AI release that has them), and the
+`long_context` Decision option. Plan and results:
+`docs/jev-1-14-images-box-long-context.md` in the site root.
+
+- **C01** expects image files only when the setting is on, and box only for
+  `jev-preview` and Jev 1.14.0 or later, with images on and box in AI.
+- **B16** sends a 1×1 PNG: `AiMissingFeatureException` with images off,
+  `AiBadRequestException` (too small) with images on. Both are 0 HTTP.
+- **I01:** a GIF and a 1×1 PNG are rejected before HTTP.
+- **I02:** a noul about a 600 × 400 white PNG with a red rectangle at
+  x 150–300, y 100–300. The request must be multipart with the images header.
+- **I03:** a red PNG then a blue JPEG; choices about `images[0]` and
+  `images[1]` check that file order is kept.
+- **I04:** a box question for the red rectangle on `jev-preview`. PASS within
+  0.05 of each expected edge, otherwise WARN.
+- **I05:** a box question on `jev-latest` is rejected before HTTP with
+  `decision_box`. Update it once `jev-latest` points to Jev 1.14.
+- **L01:** `long_context` sends `TypeSafe-Danger-Zone-Long-Context` on a small
+  request.
+- The recorder notes each request's `TypeSafe-Danger-Zone-*` headers and
+  whether it was multipart. `tss:status` shows the images setting.
+
+First run with images on: **39 PASS**, 27 HTTP requests. The box for the red
+rectangle came back as (156,100)–(300,296) px on `jev-1.14.0`, confidence 0.90.
+A 600 × 400 PNG costs about 700 input tokens.
+
 ## Provider changes from the TypeSafe SDK changelog review (2026-10-06)
 
 The provider adopted SDK 0.6.0–0.7.2 behavior (plan:
@@ -203,7 +233,7 @@ The AI maintainer's commits on the MR branch changed behavior that these tests o
   - Single-value lists ask only the first source value.
   - Boolean fields have a "False threshold" (default 0.5): an answer at or between the two thresholds is undecided and stores nothing. A Boolean noul of exactly 0.50 now leaves the field empty instead of FALSE, which `tss:report` shows as a soft mismatch.
 - **RegEx scans text, not structure** (`da563527f`): before generation, the state and question instructions and criteria; afterward, only chosen options and score legends. Question IDs and numbers are never scanned. G04 therefore probes a score level (`post_probe_target`) that TypeSafe echoes in the legend, instead of a question ID.
-- **Moderation covers questions** (`da563527f`): the state plus question instructions and criteria in one call. Requests with images are stopped, though Jev rejects images before guardrails run anyway (B16). G06 checks that abusive question text is blocked when the state is benign. (TypeSafe didn't flag the same sentence quoted inside a neutral question, which is a reasonable judgment, so G06 uses the abusive statement itself as the question.)
+- **Moderation covers questions** (`da563527f`): the state plus question instructions and criteria in one call. Requests with images are stopped; with the TypeSafe images setting off, Jev rejects images before guardrails run anyway (B16). G06 checks that abusive question text is blocked when the state is benign. (TypeSafe didn't flag the same sentence quoted inside a neutral question, which is a reasonable judgment, so G06 uses the abusive statement itself as the question.)
 - **Global guardrail sets** (`da563527f`): checks that can't run on Decision are skipped with a logged warning. The smoke sets are attached per automator, never globally, so they still fail closed.
 - **Per-question refusals** (drafted 2026-10-06; not in AI yet): a new output capability, `decision_refusals`. Jev answers every question, so C01 expects TypeSafe *not* to declare it. The check uses `AiModelCapability::tryFrom()`, so it passes on AI versions with or without the capability. Adding a service argument to `DecisionValidationEventSubscriber` needs a cache rebuild (`drush cr`). Until then every proxied call fails with a misleading `ServiceCircularReferenceException`.
 
